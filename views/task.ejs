@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" class="semi-dark">
+  <head>
+    <%- include("partials/metaHead") %>
+    <title>Register Reddit - TDSoft</title>
+  </head>
+
+  <body>
+    <!--start wrapper-->
+    <div class="wrapper">
+      <%- include("partials/topHeader") %> <%- include("partials/sidebarNav") %>
+
+      <!--start content-->
+      <main class="page-content">
+        <div class="row">
+          <div class="col-lg-6">
+            <!-- START Create New Task -->
+            <div class="card radius-10 shadow-sm w-100">
+              <div class="card-header">
+                <h5 class="mb-0">Create New Task</h5>
+              </div>
+              <div class="card-body">
+                <form action="/start" method="get">
+                  <div>
+                    <label for="numProcesses" class="form-label"
+                      >Number of Processes</label
+                    >
+                    <input
+                      type="number"
+                      class="form-control"
+                      name="numProcesses"
+                      id="numProcesses"
+                      min="1"
+                      value="<%= processes %>"
+                    />
+                  </div>
+                  <button
+                    class="btn btn-primary px-5 mt-3 <%= running ? 'disabled' : '' %>"
+                    type="submit"
+                  >
+                    Start
+                  </button>
+                  <a
+                    class="btn btn-danger px-5 mt-3 <%= running ? '' : 'disabled' %>"
+                    href="/stop"
+                    >Stop</a
+                  >
+                </form>
+              </div>
+            </div>
+            <!-- END Create New Task-->
+            <!-- START Running Processes-->
+            <div class="card radius-10 shadow-sm w-100">
+              <div class="card-header">
+                <div class="row justify-content-between align-items-center">
+                  <div class="col">
+                    <h5 class="mb-0">Running Processes</h5>
+                  </div>
+                  <div class="col text-end">
+                    <a class="btn btn-danger px-3" href="/processes/kill-all"
+                      >Kill All</a
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">
+                <table class="table table-striped mb-0">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Proxy</th>
+                      <th>IP</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="processes"></tbody>
+                </table>
+              </div>
+            </div>
+            <!-- END Running Processes-->
+          </div>
+          <div class="col-lg-6">
+            <!-- START Recent Tasks -->
+            <div class="card radius-10 shadow-sm w-100">
+              <div class="card-header">
+                <h5 class="mb-0">Recent Tasks</h5>
+              </div>
+              <div class="card-body">
+                <table class="table table-striped mb-0">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Processes</th>
+                      <th>Registered</th>
+                      <th>Failed</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% for (task of recentTasks) { %>
+                    <tr>
+                      <td><%= task.startDate.toLocaleString() %></td>
+                      <td><%= task.numProcesses %></td>
+                      <td><%= task.registered %></td>
+                      <td><%= task.failed %></td>
+                      <td><%= task.running ? "Running" : "Finished" %></td>
+                    </tr>
+                    <% } %>
+                  </tbody>
+                </table>
+                <!-- Pagination -->
+                <nav class="mt-3">
+                  <ul class="pagination round-pagination">
+                    <li
+                      class="page-item <%= currentPage === 1 ? 'disabled' : '' %>"
+                    >
+                      <a href="?page=<%= currentPage - 1 %>" class="page-link"
+                        ><span aria-hidden="true">«</span></a
+                      >
+                    </li>
+                    <% for (let i = 1; i <= totalPages; i++) { %>
+                    <li
+                      class="page-item <%= currentPage === i ? 'active' : ''%>"
+                    >
+                      <a href="/?page=<%= i %>" class="page-link"><%= i %></a>
+                    </li>
+                    <% } %>
+
+                    <li
+                      class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>"
+                    >
+                      <a href="/?page=<%= currentPage + 1 %>" class="page-link"
+                        ><span aria-hidden="true">»</span></a
+                      >
+                    </li>
+                  </ul>
+                  <span>Total: <%= totalItems %> tasks</span>
+                </nav>
+              </div>
+            </div>
+            <!-- End Recent Tasks -->
+          </div>
+        </div>
+      </main>
+      <!--end page main-->
+
+      <!--start overlay-->
+      <div class="overlay nav-toggle-icon"></div>
+      <!--end overlay-->
+
+      <!--Start Back To Top Button-->
+      <a href="javaScript:;" class="back-to-top"
+        ><i class="bx bxs-up-arrow-alt"></i
+      ></a>
+      <!--End Back To Top Button-->
+    </div>
+    <!--end wrapper-->
+
+    <%- include("partials/jsLib") %>
+
+    <!-- Running Processes -->
+    <script>
+      function loadProcesses() {
+        $.ajax({
+          url: "/processes",
+          success: (result) => {
+            let outputHTML = "";
+            for (process of result) {
+              outputHTML += "<tr>";
+              outputHTML += "<td>" + process.workerId + "</td>";
+              outputHTML += "<td>" + process.proxy + "</td>";
+              outputHTML += "<td>" + process.currentIP + "</td>";
+              outputHTML += "<td>" + process.status + "</td>";
+              outputHTML += "</tr>";
+            }
+            $("#processes").html(outputHTML);
+          },
+        });
+      }
+      setInterval(loadProcesses, 2000);
+    </script>
+  </body>
+</html>
