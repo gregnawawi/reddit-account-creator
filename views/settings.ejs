@@ -132,6 +132,16 @@
                     </div>
                   </div>
                   <div class="mb-3">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox"
+                      id="headless" name="headless" value="headless" <%=
+                      settings["headless"] ? 'checked' : '' %> />
+                      <label class="form-check-label" for="headless"
+                        >Headless</label
+                      >
+                    </div>
+                  </div>
+                  <div class="mb-3">
                     <label for="proxyType" class="form-label">Proxy Type</label>
                     <select class="form-select">
                       <option value="xProxy" <%= settings["proxyType"] == 'xProxy' ? 'selected' : '' %>>xProxy</option>

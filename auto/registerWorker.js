@@ -79,6 +79,7 @@ async function executeRegisterRedditScript(options) {
       fakeBrowser = await loopUntilSuccess({
         fn: getFakeBrowser,
         fnOptions: {
+          headless: config.get("headless"),
           deviceDescriptorPath: config.get("deviceDescriptorPath"),
           executablePath: config.get("executableChromePath"),
           userDataDir: path.resolve(

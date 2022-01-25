@@ -35,6 +35,11 @@ router.post("/", async (req, res) => {
   } else {
     req.body.turnOnNSFW = true;
   }
+  if (!req.body.headless) {
+    req.body.headless = false;
+  } else {
+    req.body.headless = true;
+  }
 
   // Pre-processing s -> ms
   req.body.delayPerAttemp *= 1000;

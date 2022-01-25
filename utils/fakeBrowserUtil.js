@@ -32,6 +32,7 @@ async function getFakeBrowser(options) {
           headless,
           executablePath,
           userDataDir,
+          headless,
         })
         .usePlugins([
           RecaptchaPlugin({
