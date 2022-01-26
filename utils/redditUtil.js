@@ -27,6 +27,7 @@ async function getEmailVerificationLink(options) {
   return new Promise(async (resolve, reject) => {
     try {
       let result = await getLatestHotmail(email, password);
+      result = result.replace(/(\r\n|\n|\r)/gm, "");
       const verificationLinkPattern =
         /(https:\/\/www.reddit.com\/verification\/[a-zA-Z0-9?_\-=&;]*)/;
 

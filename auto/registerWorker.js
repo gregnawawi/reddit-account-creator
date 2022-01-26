@@ -186,12 +186,16 @@ async function executeRegisterRedditScript(options) {
         // Type email address
         await logToProcess(currentProcess, "Filling in email address...");
         const emailInput = await registerFrame.waitForSelector(
-          "input#regEmail"
+          "input#regEmail",
+          {
+            visible: true,
+          }
         );
         await emailInput.press("Backspace");
-        await registerFrame.type("input#regEmail", emailUsername, {
-          delay: config.get("typingDelay"),
-        });
+        await emailInput.type(emailUsername);
+        // await registerFrame.type("input#regEmail", emailUsername, {
+        //   delay: config.get("typingDelay"),
+        // });
       }
       await delay(config.get("delayPerAction"));
       // Click Next button
@@ -218,17 +222,19 @@ async function executeRegisterRedditScript(options) {
         }
       );
       await usernameInput.press("Backspace");
-      await registerFrame.type("input#regUsername", username, {
-        delay: config.get("typingDelay"),
-      });
+      await usernameInput.type(username);
+      // await registerFrame.type("input#regUsername", username, {
+      //   delay: config.get("typingDelay"),
+      // });
       await delay(config.get("delayPerAction"));
       const passwordInput = await registerFrame.waitForSelector(
         "input#regPassword"
       );
       await passwordInput.press("Backspace");
-      await registerFrame.type("input#regPassword", password, {
-        delay: config.get("typingDelay"),
-      });
+      await passwordInput.type(password);
+      // await registerFrame.type("input#regPassword", password, {
+      //   delay: config.get("typingDelay"),
+      // });
       await delay(config.get("delayPerAction"));
 
       // Solve captcha
@@ -399,18 +405,27 @@ async function executeRegisterRedditScript(options) {
       if (verifyEmail) {
         await logToProcess(currentProcess, "Verifying email...");
         try {
-          // Read verification email
-          const verificationLink = await getEmailVerificationLink(
-            emailUsername,
-            emailPassword,
-            config.get("maxAttemps"),
-            config.get("delayPerAttemp")
-          );
+          let verificationLink;
+          for (let i = 0; i < config.get("maxAttemps"); i++) {
+            try {
+              // Read verification email
 
-          // Go to verification link
-          await page.goto(verificationLink);
+              verificationLink = await getEmailVerificationLink({
+                email: emailUsername,
+                password: emailPassword,
+              });
+              break;
+            } catch (err) {}
+          }
 
-          verification = "Mail Verified";
+          if (verificationLink) {
+            // Go to verification link
+            await page.goto(verificationLink);
+
+            verification = "Mail Verified";
+          } else {
+            verification = "No";
+          }
         } catch (err) {
           await logToProcess(currentProcess, "Failed to verify email...");
           logger.error(
