@@ -38,14 +38,40 @@ router.get("/", async (req, res) => {
 router.post("/export", async (req, res) => {
   const fromDate = new Date(req.body.fromDate);
   const toDate = new Date(req.body.toDate);
-  const zip = new AdmZip();
-
-  const accounts = await Account.find({
+  const verification = req.body.verification;
+  const status = req.body.status;
+  const queryOptions = {
     createdDate: {
       $lte: endOfDay(toDate),
       $gte: startOfDay(fromDate),
     },
-  }).select(
+  };
+  switch (verification) {
+    case "no": {
+      queryOptions.verification = "No";
+      break;
+    }
+
+    case "mailVerified": {
+      queryOptions.verification = "Mail Verified";
+      break;
+    }
+  }
+
+  switch (status) {
+    case "live": {
+      queryOptions.status = "Live";
+      break;
+    }
+
+    case "died": {
+      queryOptions.status = "Died";
+      break;
+    }
+  }
+  const zip = new AdmZip();
+
+  const accounts = await Account.find(queryOptions).select(
     "username password email passmail cookies verification IP createdDate status -_id"
   );
 

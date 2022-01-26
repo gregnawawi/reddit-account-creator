@@ -98,311 +98,334 @@ async function executeRegisterRedditScript(options) {
       reject(`${username} -> can't instantiate fakeBrowser`);
       return;
     }
-    // Create a new tab
-    const page = await fakeBrowser.vanillaBrowser.newPage();
-    // Set default timeout for all
-    page.setDefaultTimeout(config.get("defaultTimeout"));
 
-    await logToProcess(
-      currentProcess,
-      "Searching for random Google keyword..."
-    );
-    // Get a random keyword
-    const randomKeyword = choice(randomKeywords).toLowerCase().trim();
-    // Search google for a random keywords
-    await page.goto(
-      `https://www.google.com/search?q=${randomKeyword}+site:reddit.com`
-    );
-
-    // Click random reddit link on SERP
-    await logToProcess(currentProcess, "Clicking a random link on SERP...");
+    // Try catch to shutdown browser
     try {
-      const serpLinks = await page.$$(
-        '#rso .g a[href^="https://www.reddit.com/"]'
+      // Create a new tab
+      const page = await fakeBrowser.vanillaBrowser.newPage();
+      // Set default timeout for all
+      page.setDefaultTimeout(config.get("defaultTimeout"));
+
+      await logToProcess(
+        currentProcess,
+        "Searching for random Google keyword..."
       );
-      await choice(serpLinks).click();
-    } catch (err) {
-      reject(`${currentProxy.proxy}: might be a google recaptcha...`);
-      await fakeBrowser.shutdown();
-      return;
-    }
-
-    await logToProcess(currentProcess, "Waiting for reddit finish loading...");
-    // Wait for reddit to load successfully!
-    await page.waitForNavigation();
-
-    // Scroll page a little bit
-    await logToProcess(currentProcess, "Scrolling reddit for a while...");
-    await scrollPage({
-      page,
-      scrollTimes: randint(8, 15),
-      delayPerScroll: 2000,
-    });
-
-    // Click Sign up button
-    await logToProcess(currentProcess, "Clicking signup button...");
-    const signUpBtn = await page.waitForSelector(
-      'a[href^="https://www.reddit.com/register"]'
-    );
-    await signUpBtn.click();
-
-    // Wait for Register iFrame
-    await logToProcess(currentProcess, "Waiting for register iFrame...");
-    const frameElementHandle = await page.waitForSelector(
-      'iframe[src^="https://www.reddit.com/register"]'
-    );
-    const registerFrame = await frameElementHandle.contentFrame();
-
-    let emailUsername = "";
-    let emailPassword = "";
-    if (verifyEmail) {
-      await logToProcess(currentProcess, "Getting a new email address...");
-      // Get a new email address
-      const email = await Email.findOneAndUpdate(
-        { status: true },
-        { $set: { status: false } },
-        { new: true }
+      // Get a random keyword
+      const randomKeyword = choice(randomKeywords).toLowerCase().trim();
+      // Search google for a random keywords
+      await page.goto(
+        `https://www.google.com/search?q=${randomKeyword}+site:reddit.com`
       );
 
-      // Run out of email
-      if (!email) {
-        logger.error("No emails are available!");
+      // Click random reddit link on SERP
+      await logToProcess(currentProcess, "Clicking a random link on SERP...");
+      try {
+        const serpLinks = await page.$$(
+          '#rso .g a[href^="https://www.reddit.com/"]'
+        );
+        await choice(serpLinks).click();
+      } catch (err) {
+        reject(`${currentProxy.proxy}: might be a google recaptcha...`);
         await fakeBrowser.shutdown();
-        currentTask.running = false;
-        await currentTask.save();
-        await currentProxy.endUsing();
-        await endProcess(currentProcess);
+        return;
       }
 
-      emailUsername = email.username;
-      emailPassword = email.password;
+      await logToProcess(
+        currentProcess,
+        "Waiting for reddit finish loading..."
+      );
+      // Wait for reddit to load successfully!
+      await page.waitForNavigation();
 
-      // Type email address
-      await logToProcess(currentProcess, "Filling in email address...");
-      await registerFrame.waitForSelector("input#regEmail");
-      await delay(5000); // To prevent can't type email
-      await registerFrame.type("input#regEmail", emailUsername, {
+      // Scroll page a little bit
+      await logToProcess(currentProcess, "Scrolling reddit for a while...");
+      await scrollPage({
+        page,
+        scrollTimes: randint(8, 15),
+        delayPerScroll: 2000,
+      });
+
+      // Click Sign up button
+      await logToProcess(currentProcess, "Clicking signup button...");
+      const signUpBtn = await page.waitForSelector(
+        'a[href^="https://www.reddit.com/register"]'
+      );
+      await signUpBtn.click();
+
+      // Wait for Register iFrame
+      await logToProcess(currentProcess, "Waiting for register iFrame...");
+      const frameElementHandle = await page.waitForSelector(
+        'iframe[src^="https://www.reddit.com/register"]'
+      );
+      const registerFrame = await frameElementHandle.contentFrame();
+
+      let emailUsername = "";
+      let emailPassword = "";
+      if (verifyEmail) {
+        await logToProcess(currentProcess, "Getting a new email address...");
+        // Get a new email address
+        const email = await Email.findOneAndUpdate(
+          { status: true },
+          { $set: { status: false } },
+          { new: true }
+        );
+
+        // Run out of email
+        if (!email) {
+          logger.error("No emails are available!");
+          await fakeBrowser.shutdown();
+          currentTask.running = false;
+          await currentTask.save();
+          await currentProxy.endUsing();
+          await endProcess(currentProcess);
+        }
+
+        emailUsername = email.username;
+        emailPassword = email.password;
+
+        // Type email address
+        await logToProcess(currentProcess, "Filling in email address...");
+        await registerFrame.waitForSelector("input#regEmail");
+        await delay(5000); // To prevent can't type email
+        await registerFrame.type("input#regEmail", emailUsername, {
+          delay: config.get("typingDelay"),
+        });
+      }
+      await delay(5000);
+      // Click Next button
+      await logToProcess(
+        currentProcess,
+        "Clicking Next button (after filling email)..."
+      );
+      await registerFrame.waitForSelector(
+        "fieldset button.AnimatedForm__submitButton",
+        {
+          visible: true,
+        }
+      );
+      await registerFrame.click("fieldset button.AnimatedForm__submitButton");
+
+      // Type username & password
+      await logToProcess(currentProcess, "Typing username & password...");
+      await registerFrame.waitForSelector("input#regUsername", {
+        visible: true,
+      });
+      await registerFrame.type("input#regUsername", username, {
         delay: config.get("typingDelay"),
       });
-    }
-    await delay(5000);
-    // Click Next button
-    await logToProcess(
-      currentProcess,
-      "Clicking Next button (after filling email)..."
-    );
-    await registerFrame.waitForSelector(
-      "fieldset button.AnimatedForm__submitButton",
-      {
-        visible: true,
+      await registerFrame.waitForSelector("input#regPassword");
+      await registerFrame.type("input#regPassword", password, {
+        delay: config.get("typingDelay"),
+      });
+      await delay(config.get("delayPerAction"));
+
+      // Solve captcha
+      await logToProcess(currentProcess, "Solving captcha...");
+      const captchaResult = await registerFrame.solveRecaptchas();
+      if (captchaResult.error) {
+        await logToProcess(currentProcess, "Unable to solve captcha");
+        await fakeBrowser.shutdown();
+        reject(`Unable to solve catpcha ${captchaResult.error}`);
+        return;
+      } else {
+        await logToProcess(currentProcess, "Solved captcha sucessfully");
       }
-    );
-    await registerFrame.click("fieldset button.AnimatedForm__submitButton");
 
-    // Type username & password
-    await logToProcess(currentProcess, "Typing username & password...");
-    await registerFrame.waitForSelector("input#regUsername", {
-      visible: true,
-    });
-    await registerFrame.type("input#regUsername", username, {
-      delay: config.get("typingDelay"),
-    });
-    await registerFrame.waitForSelector("input#regPassword");
-    await registerFrame.type("input#regPassword", password, {
-      delay: config.get("typingDelay"),
-    });
-    await delay(config.get("delayPerAction"));
+      // Click sign up
+      await logToProcess(currentProcess, "Clicking Sign up button (final)...");
+      await registerFrame.click("button.SignupButton");
 
-    // Solve captcha
-    await logToProcess(currentProcess, "Solving captcha...");
-    const captchaResult = await registerFrame.solveRecaptchas();
-    if (captchaResult.error) {
-      await logToProcess(currentProcess, "Unable to solve captcha");
-      await fakeBrowser.shutdown();
-      reject("Unable to solve catpcha");
-      return;
-    } else {
-      await logToProcess(currentProcess, "Solved captcha sucessfully");
-    }
-
-    // Click sign up
-    await logToProcess(currentProcess, "Clicking Sign up button (final)...");
-    await registerFrame.click("button.SignupButton");
-
-    // Wait for redirection
-    await logToProcess(
-      currentProcess,
-      "Waiting for page to load after click sign up..."
-    );
-    await page.waitForNavigation();
-
-    // Select gender (Woman)
-    await logToProcess(currentProcess, "Selecting gender (woman)...");
-    const gender = await page.waitForXPath(
-      "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/label[1]/span"
-    );
-    await gender.click();
-    await delay(config.get("delayPerAction"));
-
-    // Click continue
-    await logToProcess(currentProcess, "Clicking continue (select gender)...");
-    const continue1 = await page.waitForXPath(
-      "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
-    );
-    await continue1.click();
-    await delay(config.get("delayPerAction"));
-
-    // Select random topics
-    await logToProcess(currentProcess, "Selecting topics...");
-    for (let i = 0; i < 8; i++) {
-      const currentTopic = await page.waitForXPath(
-        `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/button[${
-          Math.floor(Math.random() * 20) + 1
-        }]`
+      // Wait for redirection
+      await logToProcess(
+        currentProcess,
+        "Waiting for page to load after click sign up..."
       );
-      await currentTopic.click();
-      await page.waitForTimeout(500);
-    }
-    await delay(config.get("delayPerAction"));
+      await page.waitForNavigation();
 
-    // Click continue
-    await logToProcess(currentProcess, "Clicking continue (select topics)...");
-    const continue2 = await page.waitForXPath(
-      "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
-    );
-    await continue2.click();
-    await delay(config.get("delayPerAction"));
+      // Select gender (Woman)
+      await logToProcess(currentProcess, "Selecting gender (woman)...");
+      const gender = await page.waitForXPath(
+        "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/label[1]/span"
+      );
+      await gender.click();
+      await delay(config.get("delayPerAction"));
 
-    // Join some communities
-    await logToProcess(currentProcess, "Joining in some communities...");
-    let numCommunities = randint(2, 5);
-    for (let i = 2; i <= 20; i++) {
-      if (numCommunities === 0) break;
-      try {
-        const currentCommunity = await page.$x(
-          `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/div[${i}]`
+      // Click continue
+      await logToProcess(
+        currentProcess,
+        "Clicking continue (select gender)..."
+      );
+      const continue1 = await page.waitForXPath(
+        "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
+      );
+      await continue1.click();
+      await delay(config.get("delayPerAction"));
+
+      // Select random topics
+      await logToProcess(currentProcess, "Selecting topics...");
+      for (let i = 0; i < 8; i++) {
+        const currentTopic = await page.waitForXPath(
+          `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/button[${
+            Math.floor(Math.random() * 20) + 1
+          }]`
         );
-        await currentCommunity[0].click();
-        numCommunities -= 1;
+        await currentTopic.click();
         await page.waitForTimeout(500);
-      } catch (err) {}
-    }
-    await delay(config.get("delayPerAction"));
-
-    // Click continue
-    await logToProcess(
-      currentProcess,
-      "Clicking continue (join in communities)..."
-    );
-    const continue3 = await page.waitForXPath(
-      "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
-    );
-    await continue3.click();
-    await delay(config.get("delayPerAction"));
-
-    // Select avatar
-    await logToProcess(currentProcess, "Selecting avatar...");
-    const continue4 = await page.waitForXPath(
-      "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
-    );
-    await delay(config.get("delayPerAction"));
-
-    // Click continue
-    await logToProcess(currentProcess, "Clicking continue (select avatar)...");
-    await continue4.click();
-    await delay(config.get("delayPerAction"));
-
-    // Scroll for a while after sign up
-    await logToProcess(currentProcess, "Scrolling for a while after sign up");
-    await scrollPage({
-      page,
-      scrollTimes: randint(8, 15),
-      delayPerScroll: 2000,
-    });
-
-    // Turn on NSFW
-    if (turnOnNSFW) {
-      await logToProcess(currentProcess, "Turning on NSFW...");
-      // Click on account dropdown butotn
-      await page.click("button#USER_DROPDOWN_ID");
-      await delay(config.get("delayPerAction"));
-
-      // Wait for user settings button
-      await page.waitForSelector("a[href='/settings']");
-      await page.click("a[href='/settings']");
-      await delay(config.get("delayPerAction"));
-
-      // Wait for web to load
-      // Uncessary
-      // await page.waitForNavigation();
-
-      // Click on Profile
-      await page.waitForSelector("a[href='/settings/profile']");
-      await page.click("a[href='/settings/profile']");
-      await delay(config.get("delayPerAction"));
-
-      // NSFW Button
-      const nsfwButton = await page.waitForXPath(
-        "/html/body/div[1]/div/div[2]/div[2]/div/div/div[2]/div[1]/div[4]/div[2]/div/button",
-        { visible: true }
-      );
-      await nsfwButton.click();
-      await delay(config.get("delayPerAction"));
-
-      // Feed setting
-      await page.click('a[href="/settings/feed"]');
-      await delay(config.get("delayPerAction"));
-
-      // Adult content button
-      const adultContentButton = await page.waitForXPath(
-        "/html/body/div[1]/div/div[2]/div[2]/div/div/div[2]/div[1]/div[1]/div[2]/div/button",
-        { visible: true }
-      );
-      await adultContentButton.click();
-      await delay(config.get("delayPerAction"));
-    }
-
-    // Verify email
-    let verification = "No";
-    if (verifyEmail) {
-      await logToProcess(currentProcess, "Verifying email...");
-      try {
-        // Read verification email
-        const verificationLink = await getEmailVerificationLink(
-          emailUsername,
-          emailPassword,
-          config.get("maxAttemps"),
-          config.get("delayPerAttemp")
-        );
-
-        // Go to verification link
-        await page.goto(verificationLink);
-
-        verification = "Mail Verified";
-      } catch (err) {
-        await logToProcess(currentProcess, "Failed to verify email...");
-        logger.error(
-          `${username} -> can't verify email ${emailUsername}, Reason: ${err}`
-        );
       }
+      await delay(config.get("delayPerAction"));
+
+      // Click continue
+      await logToProcess(
+        currentProcess,
+        "Clicking continue (select topics)..."
+      );
+      const continue2 = await page.waitForXPath(
+        "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
+      );
+      await continue2.click();
+      await delay(config.get("delayPerAction"));
+
+      // Join some communities
+      await logToProcess(currentProcess, "Joining in some communities...");
+      let numCommunities = randint(2, 5);
+      for (let i = 2; i <= 20; i++) {
+        if (numCommunities === 0) break;
+        try {
+          const currentCommunity = await page.$x(
+            `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/div[${i}]`
+          );
+          await currentCommunity[0].click();
+          numCommunities -= 1;
+          await page.waitForTimeout(500);
+        } catch (err) {}
+      }
+      await delay(config.get("delayPerAction"));
+
+      // Click continue
+      await logToProcess(
+        currentProcess,
+        "Clicking continue (join in communities)..."
+      );
+      const continue3 = await page.waitForXPath(
+        "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
+      );
+      await continue3.click();
+      await delay(config.get("delayPerAction"));
+
+      // Select avatar
+      await logToProcess(currentProcess, "Selecting avatar...");
+      const continue4 = await page.waitForXPath(
+        "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
+      );
+      await delay(config.get("delayPerAction"));
+
+      // Click continue
+      await logToProcess(
+        currentProcess,
+        "Clicking continue (select avatar)..."
+      );
+      await continue4.click();
+      await delay(config.get("delayPerAction"));
+
+      // Scroll for a while after sign up
+      await logToProcess(currentProcess, "Scrolling for a while after sign up");
+      await scrollPage({
+        page,
+        scrollTimes: randint(8, 15),
+        delayPerScroll: 2000,
+      });
+
+      // Turn on NSFW
+      if (turnOnNSFW) {
+        try {
+          await logToProcess(currentProcess, "Turning on NSFW...");
+          // Click on account dropdown butotn
+          await page.waitForSelector("button#USER_DROPDOWN_ID");
+          await page.click("button#USER_DROPDOWN_ID");
+          await delay(config.get("delayPerAction"));
+
+          // Wait for user settings button
+          await page.waitForSelector("a[href='/settings']");
+          await page.click("a[href='/settings']");
+          await delay(config.get("delayPerAction"));
+
+          // Click on Profile
+          await page.waitForSelector("a[href='/settings/profile']");
+          await page.click("a[href='/settings/profile']");
+          await delay(config.get("delayPerAction"));
+
+          // NSFW Button
+          const nsfwButton = await page.waitForXPath(
+            "/html/body/div[1]/div/div[2]/div[2]/div/div/div[2]/div[1]/div[4]/div[2]/div/button",
+            { visible: true }
+          );
+          await nsfwButton.click();
+          await delay(config.get("delayPerAction"));
+
+          // Feed setting
+          await page.click('a[href="/settings/feed"]');
+          await delay(config.get("delayPerAction"));
+
+          // Adult content button
+          const adultContentButton = await page.waitForXPath(
+            "/html/body/div[1]/div/div[2]/div[2]/div/div/div[2]/div[1]/div[1]/div[2]/div/button",
+            { visible: true }
+          );
+          await adultContentButton.click();
+          await delay(config.get("delayPerAction"));
+        } catch (err) {
+          reject(`${username}: can't turn on NSFW ${err}`);
+          await fakeBrowser.shutdown();
+          return;
+        }
+      }
+
+      // Verify email
+      let verification = "No";
+      if (verifyEmail) {
+        await logToProcess(currentProcess, "Verifying email...");
+        try {
+          // Read verification email
+          const verificationLink = await getEmailVerificationLink(
+            emailUsername,
+            emailPassword,
+            config.get("maxAttemps"),
+            config.get("delayPerAttemp")
+          );
+
+          // Go to verification link
+          await page.goto(verificationLink);
+
+          verification = "Mail Verified";
+        } catch (err) {
+          await logToProcess(currentProcess, "Failed to verify email...");
+          logger.error(
+            `${username} -> can't verify email ${emailUsername}, Reason: ${err}`
+          );
+        }
+      }
+
+      await logToProcess(currentProcess, "Exporting cookies...");
+      let cookies = await page.cookies();
+      cookies = JSON.stringify(cookies);
+
+      // Create new account object
+      const account = new Account({
+        username: username,
+        password: password,
+        email: emailUsername,
+        passmail: emailPassword,
+        cookies: cookies,
+        IP: currentIP,
+        verification: verification,
+      });
+      resolve(account);
+    } catch (err) {
+      // Uncaught error
+      reject(`Uncaught error ${err}`);
+    } finally {
+      await fakeBrowser.shutdown();
     }
-
-    await logToProcess(currentProcess, "Exporting cookies...");
-    let cookies = await page.cookies();
-    cookies = JSON.stringify(cookies);
-
-    // Create new account object
-    const account = new Account({
-      username: username,
-      password: password,
-      email: emailUsername,
-      passmail: emailPassword,
-      cookies: cookies,
-      IP: currentIP,
-      verification: verification,
-    });
-    resolve(account);
-    await fakeBrowser.shutdown();
   });
 }
 // END REGISTER REDDIT ACCOUNT SCRIPT

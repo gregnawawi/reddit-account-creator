@@ -1,23 +1,36 @@
 const config = require("config");
 const { getFakeBrowser } = require("./utils/fakeBrowserUtil");
 const path = require("path");
+const fs = require("fs");
+const mongoose = require("mongoose");
+const { Task } = require("./models/task");
+
+async function foo() {
+  return new Promise((resolve, reject) => {
+    throw new Error();
+    console.log("I'm in foo");
+  });
+}
+
+// Connect to MongoDB
+mongoose
+  .connect(config.get("mongoDBHost"))
+  .then(() =>
+    console.log(`Connected to MongoDB host: ${config.get("mongoDBHost")}`)
+  )
+  .catch(() =>
+    console.error(
+      `FATAL ERROR: Can't connect to MongoDB host: ${config.get("mongoDBHost")}`
+    )
+  );
 
 async function main() {
-  const fakeBrowser = await getFakeBrowser({
-    deviceDescriptorPath: config.get("deviceDescriptorPath"),
-    executablePath: config.get("executableChromePath"),
-    userDataDir: path.resolve(config.get("chromeProfilesPath"), `./testblabla`),
-    captchaAPI: config.get("2captchaAPI"),
-    proxy: "192.168.1.14:4001",
-    exportIP: "192.168.1.14",
-  });
-
-  // Create a new tab
-  const page = await fakeBrowser.vanillaBrowser.newPage();
-  // Set default timeout for all
-  page.setDefaultTimeout(config.get("defaultTimeout"));
-
-  await page.goto("https://abrahamjuliot.github.io/creepjs/");
+  try {
+    const test = await foo();
+    console.log(test);
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 main();

@@ -39,6 +39,24 @@
                   id="toDate"
                 />
               </div>
+              <div class="mb-3">
+                <label for="verification" class="form-label"
+                  >Verification</label
+                >
+                <select name="verification" class="form-select">
+                  <option value="all">All</option>
+                  <option value="no">No</option>
+                  <option value="mailVerified">Mail Verified</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label for="status" class="form-label">Status</label>
+                <select name="status" class="form-select">
+                  <option value="all">All</option>
+                  <option value="live">Live</option>
+                  <option value="died">Died</option>
+                </select>
+              </div>
               <button class="btn btn-primary px-5" type="submit">Export</button>
             </form>
           </div>
