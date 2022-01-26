@@ -185,13 +185,15 @@ async function executeRegisterRedditScript(options) {
 
         // Type email address
         await logToProcess(currentProcess, "Filling in email address...");
-        await registerFrame.waitForSelector("input#regEmail");
-        await delay(5000); // To prevent can't type email
+        const emailInput = await registerFrame.waitForSelector(
+          "input#regEmail"
+        );
+        await emailInput.press("Backspace");
         await registerFrame.type("input#regEmail", emailUsername, {
           delay: config.get("typingDelay"),
         });
       }
-      await delay(5000);
+      await delay(config.get("delayPerAction"));
       // Click Next button
       await logToProcess(
         currentProcess,
@@ -205,15 +207,25 @@ async function executeRegisterRedditScript(options) {
       );
       await registerFrame.click("fieldset button.AnimatedForm__submitButton");
 
+      await delay(config.get("delayPerAction"));
+
       // Type username & password
       await logToProcess(currentProcess, "Typing username & password...");
-      await registerFrame.waitForSelector("input#regUsername", {
-        visible: true,
-      });
+      const usernameInput = await registerFrame.waitForSelector(
+        "input#regUsername",
+        {
+          visible: true,
+        }
+      );
+      await usernameInput.press("Backspace");
       await registerFrame.type("input#regUsername", username, {
         delay: config.get("typingDelay"),
       });
-      await registerFrame.waitForSelector("input#regPassword");
+      await delay(config.get("delayPerAction"));
+      const passwordInput = await registerFrame.waitForSelector(
+        "input#regPassword"
+      );
+      await passwordInput.press("Backspace");
       await registerFrame.type("input#regPassword", password, {
         delay: config.get("typingDelay"),
       });
@@ -230,6 +242,8 @@ async function executeRegisterRedditScript(options) {
       } else {
         await logToProcess(currentProcess, "Solved captcha sucessfully");
       }
+
+      await delay(config.get("delayPerAction"));
 
       // Click sign up
       await logToProcess(currentProcess, "Clicking Sign up button (final)...");
