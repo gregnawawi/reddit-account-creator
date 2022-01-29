@@ -23,6 +23,7 @@ const {
   randint,
 } = require("../utils/randomUtil");
 const { Logger } = require("../utils/logUtil");
+const { createNewGologinBrowser } = require("../utils/gologinUtil");
 
 // Connect to MongoDB
 mongoose
@@ -73,36 +74,41 @@ async function executeRegisterRedditScript(options) {
     }
 
     // Create browser instance
-    await logToProcess(currentProcess, "Instantiating fakeBrowser...");
-    let fakeBrowser;
+    await logToProcess(currentProcess, "Instantiating goLoginBrowser...");
+    let goLoginBrowser;
+    let profileId;
     try {
-      fakeBrowser = await loopUntilSuccess({
-        fn: getFakeBrowser,
+      ({ goLoginBrowser, profileId } = await loopUntilSuccess({
+        fn: createNewGologinBrowser,
         fnOptions: {
-          headless: config.get("headless"),
-          deviceDescriptorPath: config.get("deviceDescriptorPath"),
-          executablePath: config.get("executableChromePath"),
-          userDataDir: path.resolve(
-            config.get("chromeProfilesPath"),
-            `./${username}`
-          ),
+          accessToken: config.get("goLoginAPI"),
+          profileName: username,
           captchaAPI: config.get("2captchaAPI"),
-          proxy: currentProxy.proxy,
-          exportIP: currentIP,
+          proxy: {
+            mode: "http",
+            host: currentProxy.proxy.split(":")[0],
+            port: currentProxy.proxy.split(":")[1],
+          },
         },
         maxAttemps: config.get("maxAttemps"),
         delayPerAttemps: config.get("delayPerAttemp"),
         logger,
-      });
+      }));
     } catch (err) {
-      reject(`${username} -> can't instantiate fakeBrowser`);
+      reject(`${username} -> can't instantiate goLoginBrowser`);
       return;
     }
+    // Turn off notification
+    const browserContext = goLoginBrowser.defaultBrowserContext();
+    browserContext.overridePermissions("https://www.reddit.com", [
+      "geolocation",
+      "notifications",
+    ]);
 
     // Try catch to shutdown browser
     try {
       // Create a new tab
-      const page = await fakeBrowser.vanillaBrowser.newPage();
+      const page = await goLoginBrowser.newPage();
       // Set default timeout for all
       page.setDefaultTimeout(config.get("defaultTimeout"));
 
@@ -126,7 +132,7 @@ async function executeRegisterRedditScript(options) {
         await choice(serpLinks).click();
       } catch (err) {
         reject(`${currentProxy.proxy}: might be a google recaptcha...`);
-        await fakeBrowser.shutdown();
+        await goLoginBrowser.shutdown();
         return;
       }
 
@@ -173,7 +179,7 @@ async function executeRegisterRedditScript(options) {
         // Run out of email
         if (!email) {
           logger.error("No emails are available!");
-          await fakeBrowser.shutdown();
+          await goLoginBrowser.shutdown();
           currentTask.running = false;
           await currentTask.save();
           await currentProxy.endUsing();
@@ -191,11 +197,12 @@ async function executeRegisterRedditScript(options) {
             visible: true,
           }
         );
+        await delay(5000);
         await emailInput.press("Backspace");
-        await emailInput.type(emailUsername);
-        // await registerFrame.type("input#regEmail", emailUsername, {
-        //   delay: config.get("typingDelay"),
-        // });
+        // await emailInput.type(emailUsername);
+        await registerFrame.type("input#regEmail", emailUsername, {
+          delay: config.get("typingDelay"),
+        });
       }
       await delay(config.get("delayPerAction"));
       // Click Next button
@@ -222,19 +229,19 @@ async function executeRegisterRedditScript(options) {
         }
       );
       await usernameInput.press("Backspace");
-      await usernameInput.type(username);
-      // await registerFrame.type("input#regUsername", username, {
-      //   delay: config.get("typingDelay"),
-      // });
+      // await usernameInput.type(username);
+      await registerFrame.type("input#regUsername", username, {
+        delay: config.get("typingDelay"),
+      });
       await delay(config.get("delayPerAction"));
       const passwordInput = await registerFrame.waitForSelector(
         "input#regPassword"
       );
       await passwordInput.press("Backspace");
-      await passwordInput.type(password);
-      // await registerFrame.type("input#regPassword", password, {
-      //   delay: config.get("typingDelay"),
-      // });
+      // await passwordInput.type(password);
+      await registerFrame.type("input#regPassword", password, {
+        delay: config.get("typingDelay"),
+      });
       await delay(config.get("delayPerAction"));
 
       // Solve captcha
@@ -242,7 +249,7 @@ async function executeRegisterRedditScript(options) {
       const captchaResult = await registerFrame.solveRecaptchas();
       if (captchaResult.error) {
         await logToProcess(currentProcess, "Unable to solve captcha");
-        await fakeBrowser.shutdown();
+        await goLoginBrowser.shutdown();
         reject(`Unable to solve catpcha ${captchaResult.error}`);
         return;
       } else {
@@ -290,7 +297,7 @@ async function executeRegisterRedditScript(options) {
           }]`
         );
         await currentTopic.click();
-        await page.waitForTimeout(500);
+        await delay(500);
       }
       await delay(config.get("delayPerAction"));
 
@@ -316,7 +323,7 @@ async function executeRegisterRedditScript(options) {
           );
           await currentCommunity[0].click();
           numCommunities -= 1;
-          await page.waitForTimeout(500);
+          await delay(500);
         } catch (err) {}
       }
       await delay(config.get("delayPerAction"));
@@ -395,7 +402,7 @@ async function executeRegisterRedditScript(options) {
           await delay(config.get("delayPerAction"));
         } catch (err) {
           reject(`${username}: can't turn on NSFW ${err}`);
-          await fakeBrowser.shutdown();
+          await goLogin.shutdown();
           return;
         }
       }
@@ -453,7 +460,7 @@ async function executeRegisterRedditScript(options) {
       // Uncaught error
       reject(`Uncaught error ${err}`);
     } finally {
-      await fakeBrowser.shutdown();
+      await goLoginBrowser.close();
     }
   });
 }

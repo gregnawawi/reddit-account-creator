@@ -1,3 +1,5 @@
+const { delay } = require("./otherUtil");
+
 // Scroll page
 async function scrollPage(options) {
   const { page, scrollTimes, delayPerScroll } = options;
@@ -7,7 +9,7 @@ async function scrollPage(options) {
         await page.evaluate(() => {
           window.scrollBy(0, 350);
         });
-        await page.waitForTimeout(delayPerScroll);
+        await delay(delayPerScroll);
       }
       resolve();
     } catch (err) {
