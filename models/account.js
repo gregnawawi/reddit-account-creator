@@ -34,6 +34,7 @@ const accountSchema = new mongoose.Schema({
     default: Date.now,
   },
   profileId: String,
+  note: String,
 });
 
 accountSchema.methods.checkStatus = async function () {

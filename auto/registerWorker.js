@@ -460,6 +460,7 @@ async function executeRegisterRedditScript(options) {
         IP: currentIP,
         verification: verification,
         profileId: profileId,
+        note: currentTask.note,
       });
       resolve(account);
       errorFlag = false;
@@ -471,7 +472,6 @@ async function executeRegisterRedditScript(options) {
         await goLoginBrowser.close();
         if (!errorFlag) {
           await goLogin.stop();
-          console.log("Uploaded to gologin");
         }
       } catch (err) {}
     }

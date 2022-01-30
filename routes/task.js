@@ -46,9 +46,10 @@ router.get("/stop", async (req, res) => {
 });
 
 // START NEW TASK
-router.get("/start", async (req, res) => {
+router.post("/start", async (req, res) => {
   const newTask = new Task({
-    numProcesses: Number(req.query.numProcesses),
+    numProcesses: Number(req.body.numProcesses),
+    note: req.body.note,
   });
   await newTask.save();
   startRegister(newTask.numProcesses);

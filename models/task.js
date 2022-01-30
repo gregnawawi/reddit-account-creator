@@ -24,6 +24,7 @@ const taskSchema = new mongoose.Schema({
     min: 0,
     default: 0,
   },
+  note: String,
 });
 
 // Update to the latest document

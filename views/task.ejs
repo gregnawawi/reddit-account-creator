@@ -20,8 +20,8 @@
                 <h5 class="mb-0">Create New Task</h5>
               </div>
               <div class="card-body">
-                <form action="/start" method="get">
-                  <div>
+                <form action="/start" method="post">
+                  <div class="mb-3">
                     <label for="numProcesses" class="form-label"
                       >Number of Processes</label
                     >
@@ -32,6 +32,15 @@
                       id="numProcesses"
                       min="1"
                       value="<%= processes %>"
+                    />
+                  </div>
+                  <div class="mb-3">
+                    <label for="note" class="form-label">Note</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      name="note"
+                      id="note"
                     />
                   </div>
                   <button

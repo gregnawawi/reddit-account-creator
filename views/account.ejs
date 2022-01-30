@@ -100,6 +100,7 @@
                   <th>IP</th>
                   <th>Created Date</th>
                   <th>ProfileId</th>
+                  <th>Note</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -114,6 +115,7 @@
                   <td><%= account.IP %></td>
                   <td><%= account.createdDate.toLocaleString() %></td>
                   <td><%= account.profileId %></td>
+                  <td><%= account.note %></td>
                   <td>
                     <span
                       class="badge <%= account.status ? 'bg-success' : 'bg-danger' %>"
