@@ -93,12 +93,13 @@
               <thead>
                 <tr>
                   <th>Username</th>
-                  <th>Password</th>
+                  <!-- <th>Password</th> -->
                   <th>Email</th>
-                  <th>Passmail</th>
+                  <!-- <th>Passmail</th> -->
                   <th>Verification</th>
                   <th>IP</th>
                   <th>Created Date</th>
+                  <th>ProfileId</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -106,12 +107,13 @@
                 <% for (account of accounts) { %>
                 <tr>
                   <td><%= account.username %></td>
-                  <td><%= account.password %></td>
+                  <!-- <td><%= account.password %></td> -->
                   <td><%= account.email %></td>
-                  <td><%= account.passmail %></td>
+                  <!-- <td><%= account.passmail %></td> -->
                   <td><%= account.verification %></td>
                   <td><%= account.IP %></td>
                   <td><%= account.createdDate.toLocaleString() %></td>
+                  <td><%= account.profileId %></td>
                   <td>
                     <span
                       class="badge <%= account.status ? 'bg-success' : 'bg-danger' %>"

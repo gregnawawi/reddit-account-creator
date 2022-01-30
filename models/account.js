@@ -33,6 +33,7 @@ const accountSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  profileId: String,
 });
 
 accountSchema.methods.checkStatus = async function () {
@@ -40,10 +41,10 @@ accountSchema.methods.checkStatus = async function () {
     const response = await request(
       `https://old.reddit.com/user/${this.username}`
     );
-    if (response.statusCode == 404) {
-      this.status = false;
-    } else {
+    if (response.statusCode == 200) {
       this.status = true;
+    } else {
+      this.status = false;
     }
     await this.save();
   } catch (err) {}

@@ -77,8 +77,10 @@ async function executeRegisterRedditScript(options) {
     await logToProcess(currentProcess, "Instantiating goLoginBrowser...");
     let goLoginBrowser;
     let profileId;
+    let goLogin;
+    let errorFlag = true;
     try {
-      ({ goLoginBrowser, profileId } = await loopUntilSuccess({
+      ({ goLoginBrowser, profileId, goLogin } = await loopUntilSuccess({
         fn: createNewGologinBrowser,
         fnOptions: {
           accessToken: config.get("goLoginAPI"),
@@ -89,6 +91,7 @@ async function executeRegisterRedditScript(options) {
             host: currentProxy.proxy.split(":")[0],
             port: currentProxy.proxy.split(":")[1],
           },
+          tmpdir: config.get("chromeProfilesPath"),
         },
         maxAttemps: config.get("maxAttemps"),
         delayPerAttemps: config.get("delayPerAttemp"),
@@ -112,36 +115,38 @@ async function executeRegisterRedditScript(options) {
       // Set default timeout for all
       page.setDefaultTimeout(config.get("defaultTimeout"));
 
-      await logToProcess(
-        currentProcess,
-        "Searching for random Google keyword..."
-      );
-      // Get a random keyword
-      const randomKeyword = choice(randomKeywords).toLowerCase().trim();
-      // Search google for a random keywords
-      await page.goto(
-        `https://www.google.com/search?q=${randomKeyword}+site:reddit.com`
-      );
+      // await logToProcess(
+      //   currentProcess,
+      //   "Searching for random Google keyword..."
+      // );
+      // // Get a random keyword
+      // const randomKeyword = choice(randomKeywords).toLowerCase().trim();
+      // // Search google for a random keywords
+      // await page.goto(
+      //   `https://www.google.com/search?q=${randomKeyword}+site:reddit.com`
+      // );
 
-      // Click random reddit link on SERP
-      await logToProcess(currentProcess, "Clicking a random link on SERP...");
-      try {
-        const serpLinks = await page.$$(
-          '#rso .g a[href^="https://www.reddit.com/"]'
-        );
-        await choice(serpLinks).click();
-      } catch (err) {
-        reject(`${currentProxy.proxy}: might be a google recaptcha...`);
-        await goLoginBrowser.shutdown();
-        return;
-      }
+      // // Click random reddit link on SERP
+      // await logToProcess(currentProcess, "Clicking a random link on SERP...");
+      // try {
+      //   const serpLinks = await page.$$(
+      //     '#rso .g a[href^="https://www.reddit.com/"]'
+      //   );
+      //   await choice(serpLinks).click();
+      // } catch (err) {
+      //   reject(`${currentProxy.proxy}: might be a google recaptcha...`);
+      //   await goLoginBrowser.close();
+      //   return;
+      // }
 
-      await logToProcess(
-        currentProcess,
-        "Waiting for reddit finish loading..."
-      );
-      // Wait for reddit to load successfully!
-      await page.waitForNavigation();
+      await page.goto("https://www.reddit.com");
+
+      // await logToProcess(
+      //   currentProcess,
+      //   "Waiting for reddit finish loading..."
+      // );
+      // // Wait for reddit to load successfully!
+      // await page.waitForNavigation();
 
       // Scroll page a little bit
       await logToProcess(currentProcess, "Scrolling reddit for a while...");
@@ -179,7 +184,7 @@ async function executeRegisterRedditScript(options) {
         // Run out of email
         if (!email) {
           logger.error("No emails are available!");
-          await goLoginBrowser.shutdown();
+          await goLoginBrowser.close();
           currentTask.running = false;
           await currentTask.save();
           await currentProxy.endUsing();
@@ -249,7 +254,7 @@ async function executeRegisterRedditScript(options) {
       const captchaResult = await registerFrame.solveRecaptchas();
       if (captchaResult.error) {
         await logToProcess(currentProcess, "Unable to solve captcha");
-        await goLoginBrowser.shutdown();
+        await goLoginBrowser.close();
         reject(`Unable to solve catpcha ${captchaResult.error}`);
         return;
       } else {
@@ -402,7 +407,7 @@ async function executeRegisterRedditScript(options) {
           await delay(config.get("delayPerAction"));
         } catch (err) {
           reject(`${username}: can't turn on NSFW ${err}`);
-          await goLogin.shutdown();
+          await goLoginBrowser.close();
           return;
         }
       }
@@ -454,13 +459,21 @@ async function executeRegisterRedditScript(options) {
         cookies: cookies,
         IP: currentIP,
         verification: verification,
+        profileId: profileId,
       });
       resolve(account);
+      errorFlag = false;
     } catch (err) {
       // Uncaught error
       reject(`Uncaught error ${err}`);
     } finally {
-      await goLoginBrowser.close();
+      try {
+        await goLoginBrowser.close();
+        if (!errorFlag) {
+          await goLogin.stop();
+          console.log("Uploaded to gologin");
+        }
+      } catch (err) {}
     }
   });
 }

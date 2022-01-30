@@ -3,7 +3,14 @@ const GoLogin = require("gologin");
 
 // Create a new Gologin Browser
 async function createNewGologinBrowser(options) {
-  const { accessToken, profileName, captchaAPI, os = "win", proxy } = options;
+  const {
+    accessToken,
+    profileName,
+    captchaAPI,
+    os = "win",
+    proxy,
+    tmpdir,
+  } = options;
   const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
   puppeteer.use(
     RecaptchaPlugin({
@@ -16,7 +23,10 @@ async function createNewGologinBrowser(options) {
   );
   return new Promise(async (resolve, reject) => {
     try {
-      const goLogin = new GoLogin({ token: accessToken });
+      const goLogin = new GoLogin({
+        token: accessToken,
+        tmpdir,
+      });
 
       const profileId = await goLogin.create({
         name: profileName,
@@ -39,7 +49,7 @@ async function createNewGologinBrowser(options) {
         ignoreHTTPSErrors: true,
       });
 
-      resolve({ goLoginBrowser, profileId });
+      resolve({ goLoginBrowser, profileId, goLogin });
       return;
     } catch (err) {
       reject(`Can't create new Gologin browser, ${err}`);
@@ -49,15 +59,7 @@ async function createNewGologinBrowser(options) {
 
 // Re-use Gologin browser using profileId
 async function reuseGologinBrowser(options) {
-  const {
-    accessToken,
-    profileId,
-    maxAttemps,
-    delayPerAttemp,
-    captchaAPI,
-    logger = console,
-    proxy,
-  } = options;
+  const { accessToken, profileId, captchaAPI, proxy, tmpdir } = options;
   const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
   puppeteer.use(
     RecaptchaPlugin({
@@ -69,36 +71,33 @@ async function reuseGologinBrowser(options) {
     })
   );
   return new Promise(async (resolve, reject) => {
-    for (let i = 0; i < maxAttemps; i++) {
-      try {
-        const goLogin = new GoLogin({
-          token: accessToken,
-          profile_id: profileId,
-        });
-        await goLogin.update({
-          proxy,
-          id: profileId,
-        });
+    try {
+      const goLogin = new GoLogin({
+        token: accessToken,
+        profile_id: profileId,
+        tmpdir,
+      });
+      await goLogin.update({
+        proxy,
+        id: profileId,
+      });
 
-        const { status, wsUrl } = await goLogin.start();
+      const { status, wsUrl } = await goLogin.start();
 
-        if (status !== "success") {
-          throw new Error(`Invalid status: ${status}`);
-        }
-
-        const goLoginBrowser = await puppeteer.connect({
-          browserWSEndpoint: wsUrl.toString(),
-          ignoreHTTPSErrors: true,
-        });
-
-        resolve({ goLoginBrowser });
-        return;
-      } catch (err) {
-        logger.error(`Can't re-use Gologin browser, ${err}`);
-        await delay(delayPerAttemp);
+      if (status !== "success") {
+        throw new Error(`Invalid status: ${status}`);
       }
+
+      const goLoginBrowser = await puppeteer.connect({
+        browserWSEndpoint: wsUrl.toString(),
+        ignoreHTTPSErrors: true,
+      });
+
+      resolve({ goLoginBrowser, goLogin });
+      return;
+    } catch (err) {
+      reject(`Can't re-use Gologin browser, ${err}`);
     }
-    reject("Can't re-use Gologin browser, exceeded attemps");
   });
 }
 
