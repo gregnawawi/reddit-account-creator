@@ -102,6 +102,7 @@
                       <th>Processes</th>
                       <th>Registered</th>
                       <th>Failed</th>
+                      <th>Note</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -112,6 +113,7 @@
                       <td><%= task.numProcesses %></td>
                       <td><%= task.registered %></td>
                       <td><%= task.failed %></td>
+                      <td><%= task.note %></td>
                       <td><%= task.running ? "Running" : "Finished" %></td>
                     </tr>
                     <% } %>

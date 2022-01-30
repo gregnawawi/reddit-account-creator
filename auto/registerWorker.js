@@ -272,6 +272,7 @@ async function executeRegisterRedditScript(options) {
         currentProcess,
         "Waiting for page to load after click sign up..."
       );
+
       await page.waitForNavigation();
 
       // Select gender (Woman)
@@ -358,6 +359,11 @@ async function executeRegisterRedditScript(options) {
       );
       await continue4.click();
       await delay(config.get("delayPerAction"));
+
+      // Wait for the modal disappear
+      await page.waitForXPath("/html/body/div[1]/div/div[2]/div[4]/div/div", {
+        hidden: true,
+      });
 
       // Scroll for a while after sign up
       await logToProcess(currentProcess, "Scrolling for a while after sign up");
