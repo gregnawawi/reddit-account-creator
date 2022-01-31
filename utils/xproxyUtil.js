@@ -14,7 +14,7 @@ async function getXProxyIP(proxy) {
         reject(`${proxy}: ${responseJson.msg}`);
       }
     } catch (err) {
-      reject(`${proxy}: ${responseJson.msg}`);
+      reject(`${proxy}: can't get xProxy IP`);
     }
   });
 }
@@ -33,7 +33,7 @@ async function rotateXProxy(proxy) {
         reject(`${proxy}: ${responseJson.msg}`);
       }
     } catch (err) {
-      reject(`${proxy}: ${responseJson.msg}`);
+      reject(`${proxy}: can't rotate xProxy`);
     }
   });
 }

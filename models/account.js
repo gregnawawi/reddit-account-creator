@@ -39,13 +39,18 @@ const accountSchema = new mongoose.Schema({
 
 accountSchema.methods.checkStatus = async function () {
   try {
-    const response = await request(
+    const { body } = await request(
       `https://old.reddit.com/user/${this.username}`
     );
-    if (response.statusCode == 200) {
-      this.status = true;
-    } else {
+    body.setEncoding("utf8");
+    let content = "";
+    for await (const data of body) {
+      content += data;
+    }
+    if (content.includes("page not found")) {
       this.status = false;
+    } else {
+      this.status = true;
     }
     await this.save();
   } catch (err) {}

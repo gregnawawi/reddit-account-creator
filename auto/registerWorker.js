@@ -267,6 +267,25 @@ async function executeRegisterRedditScript(options) {
       await logToProcess(currentProcess, "Clicking Sign up button (final)...");
       await registerFrame.click("button.SignupButton");
 
+      await delay(config.get("delayPerAction"));
+
+      // Wait for text message appears at the bottom bar
+      // TESTING
+      try {
+        const bottomBarMsgXpath = await registerFrame.$x(
+          "/html/body/div[1]/main/div[2]/div/div/div[3]/span/span[2]"
+        );
+
+        const bottomBarMsg = await (
+          await bottomBarMsgXpath[0].getProperty("textContent")
+        ).jsonValue();
+        if (bottomBarMsg) {
+          reject(`Something went wrong: ${bottomBarMsg}`);
+          goLoginBrowser.close();
+          return;
+        }
+      } catch (err) {}
+
       // Wait for redirection
       await logToProcess(
         currentProcess,
@@ -295,14 +314,20 @@ async function executeRegisterRedditScript(options) {
       await delay(config.get("delayPerAction"));
 
       // Select random topics
+      const selectedTopics = [];
       await logToProcess(currentProcess, "Selecting topics...");
       for (let i = 0; i < 8; i++) {
+        const currentTopicId = randint(1, 20);
         const currentTopic = await page.waitForXPath(
-          `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/button[${
-            Math.floor(Math.random() * 20) + 1
-          }]`
+          `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/button[${currentTopicId}]`
         );
-        await currentTopic.click();
+        const topicName = await (
+          await currentTopic.getProperty("textContent")
+        ).jsonValue();
+        if (selectedTopics.indexOf(topicName) == -1) {
+          selectedTopics.push(topicName);
+          await currentTopic.click();
+        }
         await delay(500);
       }
       await delay(config.get("delayPerAction"));
@@ -345,6 +370,7 @@ async function executeRegisterRedditScript(options) {
       await continue3.click();
       await delay(config.get("delayPerAction"));
 
+      // Wait for avatar to completely loaded
       // Select avatar
       await logToProcess(currentProcess, "Selecting avatar...");
       const continue4 = await page.waitForXPath(
