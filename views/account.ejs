@@ -100,6 +100,7 @@
                   <th>IP</th>
                   <th>Created Date</th>
                   <th>ProfileId</th>
+                  <th>NSFW</th>
                   <th>Note</th>
                   <th>Status</th>
                 </tr>
@@ -115,6 +116,7 @@
                   <td><%= account.IP %></td>
                   <td><%= account.createdDate.toLocaleString() %></td>
                   <td><%= account.profileId %></td>
+                  <td><%= account.NSFW ? 'On' : 'Off' %></td>
                   <td><%= account.note %></td>
                   <td>
                     <span

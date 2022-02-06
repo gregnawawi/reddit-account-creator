@@ -33,6 +33,7 @@ const accountSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  NSFW: Boolean,
   profileId: String,
   note: String,
 });
@@ -40,14 +41,14 @@ const accountSchema = new mongoose.Schema({
 accountSchema.methods.checkStatus = async function () {
   try {
     const { body } = await request(
-      `https://old.reddit.com/user/${this.username}`
+      `https://www.reddit.com/user/${this.username}`
     );
     body.setEncoding("utf8");
     let content = "";
     for await (const data of body) {
       content += data;
     }
-    if (content.includes("page not found")) {
+    if (content.includes("Sorry")) {
       this.status = false;
     } else {
       this.status = true;

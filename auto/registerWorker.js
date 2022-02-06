@@ -6,7 +6,6 @@ const { Task } = require("../models/task");
 const { xProxy } = require("../models/xproxy");
 const { Process } = require("../models/process");
 const { Email } = require("../models/email");
-const path = require("path");
 const { delay } = require("../utils/otherUtil");
 const { txtToArray } = require("../utils/fileUtil");
 const { loopUntilSuccess } = require("../utils/otherUtil");
@@ -15,11 +14,9 @@ const {
   getEmailVerificationLink,
   checkUsernameAvailability,
 } = require("../utils/redditUtil");
-const { getFakeBrowser } = require("../utils/fakeBrowserUtil");
 const {
   randomString,
   randomUsername,
-  choice,
   randint,
 } = require("../utils/randomUtil");
 const { Logger } = require("../utils/logUtil");
@@ -115,6 +112,12 @@ async function executeRegisterRedditScript(options) {
       // Set default timeout for all
       page.setDefaultTimeout(config.get("defaultTimeout"));
 
+      // Fix not working when not focused
+      const session = await page.target().createCDPSession();
+      await session.send("Page.enable");
+      await session.send("Page.setWebLifecycleState", { state: "active" });
+      // End fix
+
       // await logToProcess(
       //   currentProcess,
       //   "Searching for random Google keyword..."
@@ -209,7 +212,7 @@ async function executeRegisterRedditScript(options) {
           delay: config.get("typingDelay"),
         });
       }
-      await delay(config.get("delayPerAction"));
+      await delay(config.get("delayPerAction") * 2);
       // Click Next button
       await logToProcess(
         currentProcess,
@@ -281,7 +284,7 @@ async function executeRegisterRedditScript(options) {
         ).jsonValue();
         if (bottomBarMsg) {
           reject(`Something went wrong: ${bottomBarMsg}`);
-          goLoginBrowser.close();
+          await goLoginBrowser.close();
           return;
         }
       } catch (err) {}
@@ -400,6 +403,7 @@ async function executeRegisterRedditScript(options) {
       });
 
       // Turn on NSFW
+      let NSFW = false;
       if (turnOnNSFW) {
         try {
           await logToProcess(currentProcess, "Turning on NSFW...");
@@ -409,13 +413,13 @@ async function executeRegisterRedditScript(options) {
           await delay(config.get("delayPerAction"));
 
           // Wait for user settings button
-          await page.waitForSelector("a[href='/settings']");
-          await page.click("a[href='/settings']");
+          await page.waitForSelector("a[href^='/settings']");
+          await page.click("a[href^='/settings']");
           await delay(config.get("delayPerAction"));
 
           // Click on Profile
-          await page.waitForSelector("a[href='/settings/profile']");
-          await page.click("a[href='/settings/profile']");
+          await page.waitForSelector("a[href^='/settings/profile']");
+          await page.click("a[href^='/settings/profile']");
           await delay(config.get("delayPerAction"));
 
           // NSFW Button
@@ -427,7 +431,7 @@ async function executeRegisterRedditScript(options) {
           await delay(config.get("delayPerAction"));
 
           // Feed setting
-          await page.click('a[href="/settings/feed"]');
+          await page.click('a[href^="/settings/feed"]');
           await delay(config.get("delayPerAction"));
 
           // Adult content button
@@ -437,6 +441,7 @@ async function executeRegisterRedditScript(options) {
           );
           await adultContentButton.click();
           await delay(config.get("delayPerAction"));
+          NSFW = true;
         } catch (err) {
           reject(`${username}: can't turn on NSFW ${err}`);
           await goLoginBrowser.close();
@@ -492,6 +497,7 @@ async function executeRegisterRedditScript(options) {
         IP: currentIP,
         verification: verification,
         profileId: profileId,
+        NSFW,
         note: currentTask.note,
       });
       resolve(account);
@@ -544,6 +550,7 @@ async function main() {
         logger.error(
           `${currentProxy.proxy} -> is rotating, exceeded max attemps to wait.`
         );
+        await currentProxy.endUsing();
         endProcess(currentProcess);
       }
     }
@@ -561,6 +568,7 @@ async function main() {
         await delay(config.get("delayPerAttemp"));
       }
       if (i === config.get("maxAttemps") - 1) {
+        await currentProxy.endUsing();
         endProcess(currentProcess);
       }
     }
@@ -577,6 +585,7 @@ async function main() {
         await delay(config.get("delayPerAttemp"));
       }
       if (i === config.get("maxAttemps") - 1) {
+        await currentProxy.endUsing();
         endProcess(currentProcess);
       }
     }
