@@ -3,6 +3,12 @@
   <head>
     <%- include("partials/metaHead") %>
     <title>Register Reddit - TDSoft</title>
+    <style>
+      /* STYLING DATATABLE */
+      tr {
+        border-color: rgb(222, 226, 230);
+      }
+    </style>
   </head>
 
   <body>
@@ -95,7 +101,7 @@
                 <h5 class="mb-0">Recent Tasks</h5>
               </div>
               <div class="card-body">
-                <table class="table table-striped mb-0">
+                <table class="table table-striped mb-0" id="taskTable">
                   <thead>
                     <tr>
                       <th>Time</th>
@@ -106,47 +112,7 @@
                       <th>Status</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    <% for (task of recentTasks) { %>
-                    <tr>
-                      <td><%= task.startDate.toLocaleString() %></td>
-                      <td><%= task.numProcesses %></td>
-                      <td><%= task.registered %></td>
-                      <td><%= task.failed %></td>
-                      <td><%= task.note %></td>
-                      <td><%= task.running ? "Running" : "Finished" %></td>
-                    </tr>
-                    <% } %>
-                  </tbody>
                 </table>
-                <!-- Pagination -->
-                <nav class="mt-3">
-                  <ul class="pagination round-pagination">
-                    <li
-                      class="page-item <%= currentPage === 1 ? 'disabled' : '' %>"
-                    >
-                      <a href="?page=<%= currentPage - 1 %>" class="page-link"
-                        ><span aria-hidden="true">«</span></a
-                      >
-                    </li>
-                    <% for (let i = 1; i <= totalPages; i++) { %>
-                    <li
-                      class="page-item <%= currentPage === i ? 'active' : ''%>"
-                    >
-                      <a href="/?page=<%= i %>" class="page-link"><%= i %></a>
-                    </li>
-                    <% } %>
-
-                    <li
-                      class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>"
-                    >
-                      <a href="/?page=<%= currentPage + 1 %>" class="page-link"
-                        ><span aria-hidden="true">»</span></a
-                      >
-                    </li>
-                  </ul>
-                  <span>Total: <%= totalItems %> tasks</span>
-                </nav>
               </div>
             </div>
             <!-- End Recent Tasks -->
@@ -189,6 +155,30 @@
         });
       }
       setInterval(loadProcesses, 2000);
+
+      // Load table
+      $(document).ready(function () {
+        $("#taskTable").DataTable({
+          ajax: {
+            url: "/all-tasks",
+            dataSrc: "",
+          },
+          order: [],
+          columns: [
+            {
+              data: "startDate",
+              render: function (data) {
+                return moment(data).format("MMMM Do YYYY, h:mm:ss a");
+              },
+            },
+            { data: "numProcesses" },
+            { data: "registered" },
+            { data: "failed" },
+            { data: "note", defaultContent: "" },
+            { data: "running", defaultContent: "" },
+          ],
+        });
+      });
     </script>
   </body>
 </html>

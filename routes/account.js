@@ -9,29 +9,14 @@ const config = require("config");
 const path = require("path");
 const { formatDate } = require("../utils/dateUtil");
 
+router.get("/all", async (req, res) => {
+  const accounts = await Account.find().sort("-createdDate");
+  res.send(accounts);
+});
+
 // ACCOUNTS HOME PAGE
 router.get("/", async (req, res) => {
-  let currentPage;
-  if (req.query.page) {
-    currentPage = Number(req.query.page);
-  } else {
-    currentPage = 1;
-  }
-  const totalItems = await Account.countDocuments();
-  const pageSize = 15;
-  const totalPages = Math.ceil(totalItems / pageSize);
-
-  const accounts = await Account.find()
-    .sort("-createdDate")
-    .limit(pageSize)
-    .skip(pageSize * (currentPage - 1));
-
-  res.render("account", {
-    accounts: accounts,
-    totalItems: totalItems,
-    totalPages: totalPages,
-    currentPage: currentPage,
-  });
+  res.render("account");
 });
 
 // EXPORT TO ZIP FILE
