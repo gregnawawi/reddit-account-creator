@@ -26,6 +26,7 @@ async function createNewGologinBrowser(options) {
       const goLogin = new GoLogin({
         token: accessToken,
         tmpdir,
+        // extra_params: ["--headless"],
       });
 
       const profileId = await goLogin.create({

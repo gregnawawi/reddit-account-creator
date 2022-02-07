@@ -155,8 +155,8 @@ async function executeRegisterRedditScript(options) {
       await logToProcess(currentProcess, "Scrolling reddit for a while...");
       await scrollPage({
         page,
-        scrollTimes: randint(8, 15),
-        delayPerScroll: 2000,
+        minTime: 15000,
+        maxTime: 20000,
       });
 
       // Click Sign up button
@@ -206,13 +206,13 @@ async function executeRegisterRedditScript(options) {
           }
         );
         await delay(5000);
+        await emailInput.click();
         await emailInput.press("Backspace");
-        // await emailInput.type(emailUsername);
-        await registerFrame.type("input#regEmail", emailUsername, {
+        await emailInput.type(emailUsername, {
           delay: config.get("typingDelay"),
         });
       }
-      await delay(config.get("delayPerAction") * 2);
+      await delay(config.get("delayPerAction") * 4);
       // Click Next button
       await logToProcess(
         currentProcess,
@@ -226,7 +226,7 @@ async function executeRegisterRedditScript(options) {
       );
       await registerFrame.click("fieldset button.AnimatedForm__submitButton");
 
-      await delay(config.get("delayPerAction"));
+      await delay(config.get("delayPerAction") * 2);
 
       // Type username & password
       await logToProcess(currentProcess, "Typing username & password...");
@@ -236,18 +236,18 @@ async function executeRegisterRedditScript(options) {
           visible: true,
         }
       );
+      await usernameInput.click();
       await usernameInput.press("Backspace");
-      // await usernameInput.type(username);
-      await registerFrame.type("input#regUsername", username, {
+      await usernameInput.type(username, {
         delay: config.get("typingDelay"),
       });
       await delay(config.get("delayPerAction"));
       const passwordInput = await registerFrame.waitForSelector(
         "input#regPassword"
       );
+      await passwordInput.click();
       await passwordInput.press("Backspace");
-      // await passwordInput.type(password);
-      await registerFrame.type("input#regPassword", password, {
+      await passwordInput.type(password, {
         delay: config.get("typingDelay"),
       });
       await delay(config.get("delayPerAction"));
@@ -398,8 +398,8 @@ async function executeRegisterRedditScript(options) {
       await logToProcess(currentProcess, "Scrolling for a while after sign up");
       await scrollPage({
         page,
-        scrollTimes: randint(8, 15),
-        delayPerScroll: 2000,
+        minTime: 15000,
+        maxTime: 20000,
       });
 
       // Turn on NSFW
@@ -422,30 +422,58 @@ async function executeRegisterRedditScript(options) {
           await page.click("a[href^='/settings/profile']");
           await delay(config.get("delayPerAction"));
 
-          // NSFW Button
-          const nsfwButton = await page.waitForXPath(
-            "/html/body/div[1]/div/div[2]/div[2]/div/div/div[2]/div[1]/div[4]/div[2]/div/button",
-            { visible: true }
+          // Wait for NSFW Label to get ID of that button
+          const nsfwLabel = await page.waitForXPath('//h3[text()="NSFW"]/..');
+          const nsfwLabelForValue = await page.evaluate(
+            (el) => el.getAttribute("for"),
+            nsfwLabel
           );
-          await nsfwButton.click();
+
+          // Check if it's already on
+          const nsfwButton = await page.waitForXPath(
+            `//button[@id='${nsfwLabelForValue}']`
+          );
+          const nsfwTurnedOn = await page.evaluate(
+            (el) => el.getAttribute("aria-checked"),
+            nsfwButton
+          );
+
+          if (nsfwTurnedOn != "true") {
+            await nsfwButton.click();
+          }
+
           await delay(config.get("delayPerAction"));
 
-          // Feed setting
+          // Turn on "Adult content"
           await page.click('a[href^="/settings/feed"]');
           await delay(config.get("delayPerAction"));
-
-          // Adult content button
-          const adultContentButton = await page.waitForXPath(
-            "/html/body/div[1]/div/div[2]/div[2]/div/div/div[2]/div[1]/div[1]/div[2]/div/button",
-            { visible: true }
+          // Wait for Adult Content Label to get ID of that button
+          const adultContentLabel = await page.waitForXPath(
+            '//h3[text()="Adult content"]/..'
           );
-          await adultContentButton.click();
-          await delay(config.get("delayPerAction"));
+          const adultContentLabelForValue = await page.evaluate(
+            (el) => el.getAttribute("for"),
+            adultContentLabel
+          );
+          // Check if it's already on
+          const adultContentButton = await page.waitForXPath(
+            `//button[@id='${adultContentLabelForValue}']`
+          );
+          const adultContentTurnedOn = await page.evaluate(
+            (el) => el.getAttribute("aria-checked"),
+            adultContentButton
+          );
+
+          if (adultContentTurnedOn != "true") {
+            await adultContentButton.click();
+            await delay(config.get("delayPerAction"));
+          }
           NSFW = true;
         } catch (err) {
-          reject(`${username}: can't turn on NSFW ${err}`);
-          await goLoginBrowser.close();
-          return;
+          NSFW = false;
+          // reject(`${username}: can't turn on NSFW ${err}`);
+          // await goLoginBrowser.close();
+          // return;
         }
       }
 

@@ -57,6 +57,14 @@
                   <option value="died">Died</option>
                 </select>
               </div>
+              <div class="mb-3">
+                <label for="nsfw" class="form-label">NSFW</label>
+                <select name="nsfw" class="form-select">
+                  <option value="all">All</option>
+                  <option value="live">On</option>
+                  <option value="died">Off</option>
+                </select>
+              </div>
               <button class="btn btn-primary px-5" type="submit">Export</button>
             </form>
           </div>
@@ -94,12 +102,12 @@
                 <tr>
                   <th>Username</th>
                   <!-- <th>Password</th> -->
-                  <th>Email</th>
+                  <!-- <th>Email</th> -->
                   <!-- <th>Passmail</th> -->
                   <th>Verification</th>
-                  <th>IP</th>
+                  <!-- <th>IP</th> -->
                   <th>Created Date</th>
-                  <th>ProfileId</th>
+                  <!-- <th>ProfileId</th> -->
                   <th>NSFW</th>
                   <th>Note</th>
                   <th>Status</th>
@@ -110,12 +118,12 @@
                 <tr>
                   <td><%= account.username %></td>
                   <!-- <td><%= account.password %></td> -->
-                  <td><%= account.email %></td>
+                  <!-- <td><%= account.email %></td> -->
                   <!-- <td><%= account.passmail %></td> -->
                   <td><%= account.verification %></td>
-                  <td><%= account.IP %></td>
+                  <!-- <td><%= account.IP %></td> -->
                   <td><%= account.createdDate.toLocaleString() %></td>
-                  <td><%= account.profileId %></td>
+                  <!-- <td><%= account.profileId %></td> -->
                   <td><%= account.NSFW ? 'On' : 'Off' %></td>
                   <td><%= account.note %></td>
                   <td>

@@ -69,6 +69,18 @@ router.post("/export", async (req, res) => {
       break;
     }
   }
+
+  switch (nsfw) {
+    case "on": {
+      queryOptions.NSFW = true;
+      break;
+    }
+
+    case "off": {
+      queryOptions.NSFW = false;
+      break;
+    }
+  }
   const zip = new AdmZip();
 
   const accounts = await Account.find(queryOptions).select(
