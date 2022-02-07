@@ -469,6 +469,28 @@ async function executeRegisterRedditScript(options) {
             await delay(config.get("delayPerAction"));
           }
           NSFW = true;
+          // Turn on default markdown
+          // Wait for markdown Label to get ID of that button
+          const markdownLabel = await page.waitForXPath(
+            '//h3[contains(text(),"markdown")]/..'
+          );
+          const markdownLabelForValue = await page.evaluate(
+            (el) => el.getAttribute("for"),
+            markdownLabel
+          );
+          // Check if it's already on
+          const markdownButton = await page.waitForXPath(
+            `//button[@id='${markdownLabelForValue}']`
+          );
+          const markdownTurnedOn = await page.evaluate(
+            (el) => el.getAttribute("aria-checked"),
+            markdownButton
+          );
+
+          if (markdownTurnedOn != "true") {
+            await markdownButton.click();
+            await delay(config.get("delayPerAction"));
+          }
         } catch (err) {
           NSFW = false;
           // reject(`${username}: can't turn on NSFW ${err}`);
