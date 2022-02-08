@@ -29,7 +29,12 @@ async function createNewGologinBrowser(options) {
         tmpdir,
       };
       if (headless) {
-        gologinOptions.extra_params = ["--headless"];
+        gologinOptions.extra_params = [
+          "--headless",
+          "--single-process",
+          "--no-zypgote",
+          "--no-sandbox",
+        ];
       }
       const goLogin = new GoLogin(gologinOptions);
 

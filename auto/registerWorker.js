@@ -1,6 +1,7 @@
 const config = require("config");
 const cluster = require("cluster");
 const mongoose = require("mongoose");
+const events = require("events");
 const { Account } = require("../models/account");
 const { Task } = require("../models/task");
 const { xProxy } = require("../models/xproxy");
@@ -8,7 +9,6 @@ const { Process } = require("../models/process");
 const { Email } = require("../models/email");
 const { delay } = require("../utils/otherUtil");
 const { txtToArray } = require("../utils/fileUtil");
-const { loopUntilSuccess } = require("../utils/otherUtil");
 const { scrollPage } = require("../utils/puppeteerUtil");
 const {
   getEmailVerificationLink,
@@ -21,6 +21,11 @@ const {
 } = require("../utils/randomUtil");
 const { Logger } = require("../utils/logUtil");
 const { createNewGologinBrowser } = require("../utils/gologinUtil");
+
+// Fix Max Listener Exceeded
+// process.setMaxListeners(0);
+const emitter = new events.EventEmitter();
+emitter.setMaxListeners(0);
 
 // Connect to MongoDB
 mongoose
@@ -41,10 +46,18 @@ async function executeRegisterRedditScript(options) {
     currentTask,
     currentProxy,
     currentIP,
-    randomKeywords,
     girlFirstnameList,
     verifyEmail,
     turnOnNSFW,
+    goLoginAPI,
+    captchaAPI,
+    chromeProfilesPath,
+    maxAttemps,
+    delayPerAttemp,
+    delayPerAction,
+    defaultTimeout,
+    headless,
+    typingDelay,
     logger,
   } = options;
 
@@ -66,7 +79,7 @@ async function executeRegisterRedditScript(options) {
         }
       } catch (err) {
         logger.error(`${username} -> can't checkUsernameAvailability, ${err}`);
-        await delay(config.get("delayPerAttemp"));
+        await delay(delayPerAttemp);
       }
     }
 
@@ -75,84 +88,51 @@ async function executeRegisterRedditScript(options) {
     let goLoginBrowser;
     let profileId;
     let goLogin;
-    let errorFlag = true;
-    try {
-      ({ goLoginBrowser, profileId, goLogin } = await loopUntilSuccess({
-        fn: createNewGologinBrowser,
-        fnOptions: {
-          accessToken: config.get("goLoginAPI"),
-          profileName: username,
-          captchaAPI: config.get("2captchaAPI"),
-          proxy: {
-            mode: "http",
-            host: currentProxy.proxy.split(":")[0],
-            port: currentProxy.proxy.split(":")[1],
-          },
-          tmpdir: config.get("chromeProfilesPath"),
-          headless: config.get("headless"),
-        },
-        maxAttemps: config.get("maxAttemps"),
-        delayPerAttemps: config.get("delayPerAttemp"),
-        logger,
-      }));
-    } catch (err) {
-      reject(`${username} -> can't instantiate goLoginBrowser`);
-      return;
+    for (let i = 0; i < maxAttemps; i++) {
+      try {
+        ({ goLoginBrowser, profileId, goLogin } = await createNewGologinBrowser(
+          {
+            accessToken: goLoginAPI,
+            profileName: username,
+            captchaAPI,
+            proxy: {
+              mode: "http",
+              host: currentProxy.proxy.split(":")[0],
+              port: currentProxy.proxy.split(":")[1],
+            },
+            tmpdir: chromeProfilesPath,
+            headless: headless,
+          }
+        ));
+        break;
+      } catch (err) {
+        logger.error(err);
+        try {
+          await goLoginBrowser.close();
+          await goLogin.stop();
+          await goLogin.stopBrowser(); // Testing
+        } catch (err) {}
+        if (i == maxAttemps - 1) {
+          await currentProxy.endUsing();
+          await endProcess(currentProcess);
+        }
+        await delay(delayPerAttemp);
+      }
     }
-    // Turn off notification
+
+    // Turn off browser notification
     const browserContext = goLoginBrowser.defaultBrowserContext();
     browserContext.overridePermissions("https://www.reddit.com", [
       "geolocation",
       "notifications",
     ]);
 
-    // Try catch to shutdown browser
     try {
-      // Create a new tab
       const page = await goLoginBrowser.newPage();
       // Set default timeout for all
-      page.setDefaultTimeout(config.get("defaultTimeout"));
-
-      // Fix not working when not focused
-      const session = await page.target().createCDPSession();
-      await session.send("Page.enable");
-      await session.send("Page.setWebLifecycleState", { state: "active" });
-      // End fix
-
-      // await logToProcess(
-      //   currentProcess,
-      //   "Searching for random Google keyword..."
-      // );
-      // // Get a random keyword
-      // const randomKeyword = choice(randomKeywords).toLowerCase().trim();
-      // // Search google for a random keywords
-      // await page.goto(
-      //   `https://www.google.com/search?q=${randomKeyword}+site:reddit.com`
-      // );
-
-      // // Click random reddit link on SERP
-      // await logToProcess(currentProcess, "Clicking a random link on SERP...");
-      // try {
-      //   const serpLinks = await page.$$(
-      //     '#rso .g a[href^="https://www.reddit.com/"]'
-      //   );
-      //   await choice(serpLinks).click();
-      // } catch (err) {
-      //   reject(`${currentProxy.proxy}: might be a google recaptcha...`);
-      //   await goLoginBrowser.close();
-      //   return;
-      // }
+      page.setDefaultTimeout(defaultTimeout);
 
       await page.goto("https://www.reddit.com");
-
-      // await logToProcess(
-      //   currentProcess,
-      //   "Waiting for reddit finish loading..."
-      // );
-      // // Wait for reddit to load successfully!
-      // await page.waitForNavigation();
-
-      // Scroll page a little bit
       await logToProcess(currentProcess, "Scrolling reddit for a while...");
       await scrollPage({
         page,
@@ -167,8 +147,8 @@ async function executeRegisterRedditScript(options) {
       );
       await signUpBtn.click();
 
-      // Wait for Register iFrame
-      await logToProcess(currentProcess, "Waiting for register iFrame...");
+      // Get register iframe
+      await logToProcess(currentProcess, "Getting register iframe...");
       const frameElementHandle = await page.waitForSelector(
         'iframe[src^="https://www.reddit.com/register"]'
       );
@@ -177,28 +157,28 @@ async function executeRegisterRedditScript(options) {
       let emailUsername = "";
       let emailPassword = "";
       if (verifyEmail) {
-        await logToProcess(currentProcess, "Getting a new email address...");
         // Get a new email address
+        await logToProcess(currentProcess, "Getting a new email address...");
         const email = await Email.findOneAndUpdate(
           { status: true },
           { $set: { status: false } },
           { new: true }
         );
-
-        // Run out of email
         if (!email) {
           logger.error("No emails are available!");
           await goLoginBrowser.close();
+          await goLogin.stop();
+          await goLogin.stopBrowser(); // Testing
           currentTask.running = false;
           await currentTask.save();
           await currentProxy.endUsing();
           await endProcess(currentProcess);
         }
-
         emailUsername = email.username;
         emailPassword = email.password;
 
         // Type email address
+        await delay(delayPerAction * 2);
         await logToProcess(currentProcess, "Filling in email address...");
         const emailInput = await registerFrame.waitForSelector(
           "input#regEmail",
@@ -206,14 +186,14 @@ async function executeRegisterRedditScript(options) {
             visible: true,
           }
         );
-        await delay(5000);
         await emailInput.click();
         await emailInput.press("Backspace");
         await emailInput.type(emailUsername, {
-          delay: config.get("typingDelay"),
+          delay: typingDelay,
         });
       }
-      await delay(config.get("delayPerAction") * 4);
+      await delay(delayPerAction * 3);
+
       // Click Next button
       await logToProcess(
         currentProcess,
@@ -226,8 +206,7 @@ async function executeRegisterRedditScript(options) {
         }
       );
       await registerFrame.click("fieldset button.AnimatedForm__submitButton");
-
-      await delay(config.get("delayPerAction") * 2);
+      await delay(delayPerAction * 3);
 
       // Type username & password
       await logToProcess(currentProcess, "Typing username & password...");
@@ -240,18 +219,18 @@ async function executeRegisterRedditScript(options) {
       await usernameInput.click();
       await usernameInput.press("Backspace");
       await usernameInput.type(username, {
-        delay: config.get("typingDelay"),
+        delay: typingDelay,
       });
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
       const passwordInput = await registerFrame.waitForSelector(
         "input#regPassword"
       );
       await passwordInput.click();
       await passwordInput.press("Backspace");
       await passwordInput.type(password, {
-        delay: config.get("typingDelay"),
+        delay: typingDelay,
       });
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
 
       // Solve captcha
       await logToProcess(currentProcess, "Solving captcha...");
@@ -259,52 +238,77 @@ async function executeRegisterRedditScript(options) {
       if (captchaResult.error) {
         await logToProcess(currentProcess, "Unable to solve captcha");
         await goLoginBrowser.close();
-        reject(`Unable to solve catpcha ${captchaResult.error}`);
+        await goLogin.stop();
+        await goLogin.stopBrowser(); // Testing
+        reject(`Unable to solve captcha ${captchaResult.error.error}`);
         return;
       } else {
         await logToProcess(currentProcess, "Solved captcha sucessfully");
       }
+      await delay(delayPerAction);
 
-      await delay(config.get("delayPerAction"));
+      // Check if there's any invalid message
+      const invalidMessages = await registerFrame.$x(
+        "//div[contains(text(), 'already taken') or contains(text(), 'characters long')]"
+      );
+      // If yes, re-type username & password
+      if (invalidMessages.length != 0) {
+        await usernameInput.click();
+        const currentUsernameValue = await registerFrame.evaluate(
+          (el) => el.value,
+          usernameInput
+        );
+        for (let i = 0; i < currentUsernameValue.length; i++) {
+          await page.keyboard.press("Backspace");
+        }
+        await usernameInput.type(username, {
+          delay: typingDelay,
+        });
+        await delay(delayPerAction);
+
+        await passwordInput.click();
+        const currentPasswordValue = await registerFrame.evaluate(
+          (el) => el.value,
+          passwordInput
+        );
+        for (let i = 0; i < currentPasswordValue.length; i++) {
+          await page.keyboard.press("Backspace");
+        }
+        await passwordInput.type(password, {
+          delay: typingDelay,
+        });
+        await delay(delayPerAction);
+      }
 
       // Click sign up
       await logToProcess(currentProcess, "Clicking Sign up button (final)...");
       await registerFrame.click("button.SignupButton");
+      await delay(delayPerAction);
 
-      await delay(config.get("delayPerAction"));
-
-      // Wait for text message appears at the bottom bar
-      // TESTING
+      // If error messages show up, quit immediately
       try {
         const bottomBarMsgXpath = await registerFrame.$x(
           "/html/body/div[1]/main/div[2]/div/div/div[3]/span/span[2]"
         );
-
         const bottomBarMsg = await (
           await bottomBarMsgXpath[0].getProperty("textContent")
         ).jsonValue();
         if (bottomBarMsg) {
           reject(`Something went wrong: ${bottomBarMsg}`);
           await goLoginBrowser.close();
+          await goLogin.stop();
+          await goLogin.stopBrowser(); // Testing
           return;
         }
       } catch (err) {}
 
-      // Wait for redirection
-      await logToProcess(
-        currentProcess,
-        "Waiting for page to load after click sign up..."
-      );
-
-      await page.waitForNavigation();
-
-      // Select gender (Woman)
-      await logToProcess(currentProcess, "Selecting gender (woman)...");
+      // Select gender
+      await logToProcess(currentProcess, "Selecting gender...");
       const gender = await page.waitForXPath(
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/label[1]/span"
       );
       await gender.click();
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
 
       // Click continue
       await logToProcess(
@@ -315,7 +319,7 @@ async function executeRegisterRedditScript(options) {
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
       );
       await continue1.click();
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
 
       // Select random topics
       const selectedTopics = [];
@@ -334,7 +338,7 @@ async function executeRegisterRedditScript(options) {
         }
         await delay(500);
       }
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
 
       // Click continue
       await logToProcess(
@@ -345,7 +349,7 @@ async function executeRegisterRedditScript(options) {
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
       );
       await continue2.click();
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
 
       // Join some communities
       await logToProcess(currentProcess, "Joining in some communities...");
@@ -361,7 +365,7 @@ async function executeRegisterRedditScript(options) {
           await delay(500);
         } catch (err) {}
       }
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
 
       // Click continue
       await logToProcess(
@@ -372,15 +376,14 @@ async function executeRegisterRedditScript(options) {
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
       );
       await continue3.click();
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
 
-      // Wait for avatar to completely loaded
       // Select avatar
       await logToProcess(currentProcess, "Selecting avatar...");
       const continue4 = await page.waitForXPath(
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
       );
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
 
       // Click continue
       await logToProcess(
@@ -388,9 +391,9 @@ async function executeRegisterRedditScript(options) {
         "Clicking continue (select avatar)..."
       );
       await continue4.click();
-      await delay(config.get("delayPerAction"));
+      await delay(delayPerAction);
 
-      // Wait for the modal disappear
+      // Wait for the modal to disappear
       await page.waitForXPath("/html/body/div[1]/div/div[2]/div[4]/div/div", {
         hidden: true,
       });
@@ -494,9 +497,6 @@ async function executeRegisterRedditScript(options) {
           }
         } catch (err) {
           NSFW = false;
-          // reject(`${username}: can't turn on NSFW ${err}`);
-          // await goLoginBrowser.close();
-          // return;
         }
       }
 
@@ -506,10 +506,9 @@ async function executeRegisterRedditScript(options) {
         await logToProcess(currentProcess, "Verifying email...");
         try {
           let verificationLink;
-          for (let i = 0; i < config.get("maxAttemps"); i++) {
+          for (let i = 0; i < maxAttemps; i++) {
             try {
               // Read verification email
-
               verificationLink = await getEmailVerificationLink({
                 email: emailUsername,
                 password: emailPassword,
@@ -534,6 +533,7 @@ async function executeRegisterRedditScript(options) {
         }
       }
 
+      // Export cookies
       await logToProcess(currentProcess, "Exporting cookies...");
       let cookies = await page.cookies();
       cookies = JSON.stringify(cookies);
@@ -552,16 +552,14 @@ async function executeRegisterRedditScript(options) {
         note: currentTask.note,
       });
       resolve(account);
-      errorFlag = false;
     } catch (err) {
       // Uncaught error
       reject(`Uncaught error ${err}`);
     } finally {
       try {
         await goLoginBrowser.close();
-        if (!errorFlag) {
-          await goLogin.stop();
-        }
+        await goLogin.stop();
+        await goLogin.stopBrowser(); // Testing
       } catch (err) {}
     }
   });
@@ -575,7 +573,6 @@ async function main() {
     currentProcess,
     currentTask,
     currentProxy,
-    randomKeywords,
     girlFirstnameList,
     logger,
   } = await setup();
@@ -651,10 +648,18 @@ async function main() {
         currentTask,
         currentProxy,
         currentIP,
-        randomKeywords,
         girlFirstnameList,
         verifyEmail: config.get("verifyEmail"),
         turnOnNSFW: config.get("turnOnNSFW"),
+        headless: config.get("headless"),
+        maxAttemps: config.get("maxAttemps"),
+        delayPerAttemp: config.get("delayPerAttemp"),
+        delayPerAction: config.get("delayPerAction"),
+        goLoginAPI: config.get("goLoginAPI"),
+        captchaAPI: config.get("2captchaAPI"),
+        chromeProfilesPath: config.get("chromeProfilesPath"),
+        defaultTimeout: config.get("defaultTimeout"),
+        typingDelay: config.get("typingDelay"),
         logger,
       });
       logToProcess(currentProcess, "Saving account to DB...");
@@ -709,7 +714,7 @@ async function setup() {
       }
 
       // SELECT PROXY TYPE DEPENDS ON CONFIG FILE
-      // THE METHODS KEEP SAME NAME TO USE
+      // THE METHODS KEEP SAME NAME TO RE-USE
       let currentProxy;
       if (config.get("proxyType") == "xProxy") {
         currentProxy = await xProxy.getProxyByWorkerId(cluster.worker.id);
@@ -724,14 +729,12 @@ async function setup() {
       await currentProcess.save();
 
       // Load necessary list
-      const randomKeywords = txtToArray(config.get("randomKeywordsPath"));
       const girlFirstnameList = txtToArray(config.get("girlFirstnameListPath"));
 
       resolve({
         currentProcess,
         currentTask,
         currentProxy,
-        randomKeywords,
         girlFirstnameList,
         logger,
       });
