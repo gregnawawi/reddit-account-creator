@@ -89,6 +89,7 @@ async function executeRegisterRedditScript(options) {
             port: currentProxy.proxy.split(":")[1],
           },
           tmpdir: config.get("chromeProfilesPath"),
+          headless: config.get("headless"),
         },
         maxAttemps: config.get("maxAttemps"),
         delayPerAttemps: config.get("delayPerAttemp"),

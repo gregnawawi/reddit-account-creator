@@ -10,6 +10,7 @@ async function createNewGologinBrowser(options) {
     os = "win",
     proxy,
     tmpdir,
+    headless = false,
   } = options;
   const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
   puppeteer.use(
@@ -23,11 +24,14 @@ async function createNewGologinBrowser(options) {
   );
   return new Promise(async (resolve, reject) => {
     try {
-      const goLogin = new GoLogin({
+      const gologinOptions = {
         token: accessToken,
         tmpdir,
-        // extra_params: ["--headless"],
-      });
+      };
+      if (headless) {
+        gologinOptions.extra_params = ["--headless"];
+      }
+      const goLogin = new GoLogin(gologinOptions);
 
       const profileId = await goLogin.create({
         name: profileName,
