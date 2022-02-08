@@ -64,7 +64,14 @@ async function createNewGologinBrowser(options) {
 
 // Re-use Gologin browser using profileId
 async function reuseGologinBrowser(options) {
-  const { accessToken, profileId, captchaAPI, proxy, tmpdir } = options;
+  const {
+    accessToken,
+    profileId,
+    captchaAPI,
+    proxy,
+    tmpdir,
+    headless = false,
+  } = options;
   const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
   puppeteer.use(
     RecaptchaPlugin({
@@ -77,11 +84,15 @@ async function reuseGologinBrowser(options) {
   );
   return new Promise(async (resolve, reject) => {
     try {
-      const goLogin = new GoLogin({
+      const gologinOptions = {
         token: accessToken,
         profile_id: profileId,
-        tmpdir,
-      });
+        tmpdir,,
+      };
+      if (headless) {
+        gologinOptions.extra_params = ["--headless"];
+      }
+      const goLogin = new GoLogin(gologinOptions);
       await goLogin.update({
         proxy,
         id: profileId,
