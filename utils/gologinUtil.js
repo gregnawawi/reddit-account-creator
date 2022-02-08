@@ -87,7 +87,7 @@ async function reuseGologinBrowser(options) {
       const gologinOptions = {
         token: accessToken,
         profile_id: profileId,
-        tmpdir,,
+        tmpdir,
       };
       if (headless) {
         gologinOptions.extra_params = ["--headless"];
