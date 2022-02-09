@@ -26,15 +26,15 @@ async function createNewGologinBrowser(options) {
     try {
       const gologinOptions = {
         token: accessToken,
+        extra_params: [
+          "--disable-background-timer-throttling",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-renderer-backgrounding",
+        ],
         tmpdir,
       };
       if (headless) {
-        gologinOptions.extra_params = [
-          "--headless",
-          "--single-process",
-          "--no-zypgote",
-          "--no-sandbox",
-        ];
+        gologinOptions.extra_params.push("--headless");
       }
       const goLogin = new GoLogin(gologinOptions);
 
@@ -92,10 +92,15 @@ async function reuseGologinBrowser(options) {
       const gologinOptions = {
         token: accessToken,
         profile_id: profileId,
+        extra_params: [
+          "--disable-background-timer-throttling",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-renderer-backgrounding",
+        ],
         tmpdir,
       };
       if (headless) {
-        gologinOptions.extra_params = ["--headless"];
+        gologinOptions.extra_params.push("--headless");
       }
       const goLogin = new GoLogin(gologinOptions);
       await goLogin.update({

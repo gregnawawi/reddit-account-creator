@@ -102,6 +102,7 @@ async function executeRegisterRedditScript(options) {
             },
             tmpdir: chromeProfilesPath,
             headless: headless,
+            workerId: cluster.worker.id,
           }
         ));
         break;
@@ -126,9 +127,11 @@ async function executeRegisterRedditScript(options) {
       "geolocation",
       "notifications",
     ]);
+    goLoginBrowser.setMaxListeners(0);
 
     try {
       const page = await goLoginBrowser.newPage();
+      page.setMaxListeners(0);
       // Set default timeout for all
       page.setDefaultTimeout(defaultTimeout);
 
