@@ -25,6 +25,7 @@ router.post("/export", async (req, res) => {
   const toDate = new Date(req.body.toDate);
   const verification = req.body.verification;
   const status = req.body.status;
+  const nsfw = req.body.nsfw;
   const queryOptions = {
     createdDate: {
       $lte: endOfDay(toDate),
