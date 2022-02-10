@@ -504,7 +504,7 @@ async function executeRegisterRedditScript(options) {
       }
 
       // Verify email
-      let verification = "No";
+      let mailVerified = false;
       if (verifyEmail) {
         await logToProcess(currentProcess, "Verifying email...");
         try {
@@ -524,9 +524,9 @@ async function executeRegisterRedditScript(options) {
             // Go to verification link
             await page.goto(verificationLink);
 
-            verification = "Mail Verified";
+            mailVerified = true;
           } else {
-            verification = "No";
+            mailVerified = false;
           }
         } catch (err) {
           await logToProcess(currentProcess, "Failed to verify email...");
@@ -549,7 +549,7 @@ async function executeRegisterRedditScript(options) {
         passmail: emailPassword,
         cookies: cookies,
         IP: currentIP,
-        verification: verification,
+        mailVerified,
         profileId: profileId,
         NSFW,
         note: currentTask.note,

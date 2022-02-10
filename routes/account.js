@@ -34,24 +34,24 @@ router.post("/export", async (req, res) => {
   };
   switch (verification) {
     case "no": {
-      queryOptions.verification = "No";
+      queryOptions.mailVerified = false;
       break;
     }
 
     case "mailVerified": {
-      queryOptions.verification = "Mail Verified";
+      queryOptions.mailVerified = true;
       break;
     }
   }
 
   switch (status) {
     case "live": {
-      queryOptions.status = "Live";
+      queryOptions.status = true;
       break;
     }
 
     case "died": {
-      queryOptions.status = "Died";
+      queryOptions.status = false;
       break;
     }
   }
@@ -70,7 +70,7 @@ router.post("/export", async (req, res) => {
   const zip = new AdmZip();
 
   const accounts = await Account.find(queryOptions).select(
-    "username password email passmail cookies verification IP createdDate status -_id"
+    "username password email passmail cookies NSFW mailVerified IP createdDate status -_id"
   );
 
   const fields = [
@@ -79,7 +79,8 @@ router.post("/export", async (req, res) => {
     "email",
     "passmail",
     "cookies",
-    "verification",
+    "NSFW",
+    "mailVerified",
     "IP",
     "createdDate",
     "status",
