@@ -42,6 +42,10 @@ async function createNewGologinBrowser(options) {
         name: profileName,
         os,
         proxy,
+        canvas: {
+          mode: "noise",
+          noise: 0,
+        },
       });
       await goLogin.update({
         id: profileId,

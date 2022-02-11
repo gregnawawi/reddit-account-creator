@@ -19,6 +19,7 @@
     "ejs": "^3.1.6",
     "express": "^4.17.2",
     "fakebrowser": "^0.0.66",
+    "ghost-cursor": "^1.1.8",
     "gologin": "^1.0.31",
     "https-proxy-agent": "^5.0.0",
     "imapflow": "^1.0.79",

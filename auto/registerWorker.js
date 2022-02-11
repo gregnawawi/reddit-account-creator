@@ -1,7 +1,6 @@
 const config = require("config");
 const cluster = require("cluster");
 const mongoose = require("mongoose");
-const events = require("events");
 const { Account } = require("../models/account");
 const { Task } = require("../models/task");
 const { xProxy } = require("../models/xproxy");
@@ -9,7 +8,11 @@ const { Process } = require("../models/process");
 const { Email } = require("../models/email");
 const { delay } = require("../utils/otherUtil");
 const { txtToArray } = require("../utils/fileUtil");
-const { scrollPage } = require("../utils/puppeteerUtil");
+const {
+  scrollPage,
+  simKeyboardPress,
+  simKeyboardType,
+} = require("../utils/puppeteerUtil");
 const {
   getEmailVerificationLink,
   checkUsernameAvailability,
@@ -21,11 +24,11 @@ const {
 } = require("../utils/randomUtil");
 const { Logger } = require("../utils/logUtil");
 const { createNewGologinBrowser } = require("../utils/gologinUtil");
-
-// Fix Max Listener Exceeded
-// process.setMaxListeners(0);
-const emitter = new events.EventEmitter();
-emitter.setMaxListeners(0);
+const {
+  createCursor,
+  getRandomPagePoint,
+  installMouseHelper,
+} = require("ghost-cursor");
 
 // Connect to MongoDB
 mongoose
@@ -101,7 +104,7 @@ async function executeRegisterRedditScript(options) {
               port: currentProxy.proxy.split(":")[1],
             },
             tmpdir: chromeProfilesPath,
-            headless: headless,
+            headless,
             workerId: cluster.worker.id,
           }
         ));
@@ -111,7 +114,7 @@ async function executeRegisterRedditScript(options) {
         try {
           await goLoginBrowser.close();
           await goLogin.stop();
-          await goLogin.stopBrowser(); // Testing
+          await goLogin.stopBrowser();
         } catch (err) {}
         if (i == maxAttemps - 1) {
           await currentProxy.endUsing();
@@ -127,28 +130,46 @@ async function executeRegisterRedditScript(options) {
       "geolocation",
       "notifications",
     ]);
-    goLoginBrowser.setMaxListeners(0);
 
     try {
       const page = await goLoginBrowser.newPage();
-      page.setMaxListeners(0);
+      await delay(300);
       // Set default timeout for all
       page.setDefaultTimeout(defaultTimeout);
 
+      // Fix puppeteer screen size
+      const viewPort = goLogin.getViewPort();
+      await page.setViewport({
+        width: Math.round(viewPort.width * 0.994),
+        height: Math.round(viewPort.height * 0.92),
+      });
+      const session = await page.target().createCDPSession();
+      const { windowId } = await session.send("Browser.getWindowForTarget");
+      await session.send("Browser.setWindowBounds", {
+        windowId,
+        bounds: viewPort,
+      });
+      await session.detach();
+
+      // Create ghost-cursor
+      const cursor = createCursor(page, await getRandomPagePoint(page));
+      await installMouseHelper(page); // Show mouse circle
+
       await page.goto("https://www.reddit.com");
+
       await logToProcess(currentProcess, "Scrolling reddit for a while...");
       await scrollPage({
         page,
-        minTime: 15000,
-        maxTime: 20000,
+        minTime: 3000,
+        maxTime: 5000,
       });
 
       // Click Sign up button
+      await delay(randint(600, 1000));
       await logToProcess(currentProcess, "Clicking signup button...");
-      const signUpBtn = await page.waitForSelector(
-        'a[href^="https://www.reddit.com/register"]'
-      );
-      await signUpBtn.click();
+      await cursor.click('a[href^="https://www.reddit.com/register"]', {
+        paddingPercentage: 20,
+      });
 
       // Get register iframe
       await logToProcess(currentProcess, "Getting register iframe...");
@@ -181,7 +202,7 @@ async function executeRegisterRedditScript(options) {
         emailPassword = email.password;
 
         // Type email address
-        await delay(delayPerAction * 2);
+        await delay(randint(2000, 6000));
         await logToProcess(currentProcess, "Filling in email address...");
         const emailInput = await registerFrame.waitForSelector(
           "input#regEmail",
@@ -189,27 +210,24 @@ async function executeRegisterRedditScript(options) {
             visible: true,
           }
         );
-        await emailInput.click();
-        await emailInput.press("Backspace");
-        await emailInput.type(emailUsername, {
-          delay: typingDelay,
-        });
+        await cursor.click(emailInput, { paddingPercentage: 20 });
+        await simKeyboardType({ page, text: emailUsername });
       }
-      await delay(delayPerAction * 3);
+      await delay(randint(6000, 12000));
 
       // Click Next button
       await logToProcess(
         currentProcess,
         "Clicking Next button (after filling email)..."
       );
-      await registerFrame.waitForSelector(
+      const nextAfterFillMailBtn = await registerFrame.waitForSelector(
         "fieldset button.AnimatedForm__submitButton",
         {
           visible: true,
         }
       );
-      await registerFrame.click("fieldset button.AnimatedForm__submitButton");
-      await delay(delayPerAction * 3);
+      await cursor.click(nextAfterFillMailBtn, { paddingPercentage: 20 });
+      await delay(randint(4000, 8000));
 
       // Type username & password
       await logToProcess(currentProcess, "Typing username & password...");
@@ -219,21 +237,15 @@ async function executeRegisterRedditScript(options) {
           visible: true,
         }
       );
-      await usernameInput.click();
-      await usernameInput.press("Backspace");
-      await usernameInput.type(username, {
-        delay: typingDelay,
-      });
-      await delay(delayPerAction);
+      await cursor.click(usernameInput, { paddingPercentage: 20 });
+      await simKeyboardType({ page, text: username });
+      await delay(randint(1000, 2000));
       const passwordInput = await registerFrame.waitForSelector(
         "input#regPassword"
       );
-      await passwordInput.click();
-      await passwordInput.press("Backspace");
-      await passwordInput.type(password, {
-        delay: typingDelay,
-      });
-      await delay(delayPerAction);
+      await cursor.click(passwordInput, { paddingPercentage: 20 });
+      await simKeyboardType({ page, text: password });
+      await delay(randint(800, 2000));
 
       // Solve captcha
       await logToProcess(currentProcess, "Solving captcha...");
@@ -256,37 +268,38 @@ async function executeRegisterRedditScript(options) {
       );
       // If yes, re-type username & password
       if (invalidMessages.length != 0) {
-        await usernameInput.click();
+        await cursor.click(usernameInput, { paddingPercentage: 20 });
         const currentUsernameValue = await registerFrame.evaluate(
           (el) => el.value,
           usernameInput
         );
         for (let i = 0; i < currentUsernameValue.length; i++) {
           await page.keyboard.press("Backspace");
+          await delay(200, 500);
         }
-        await usernameInput.type(username, {
-          delay: typingDelay,
-        });
-        await delay(delayPerAction);
+        await simKeyboardType({ page, text: username });
+        await delay(randint(1000, 2000));
 
-        await passwordInput.click();
+        await cursor.click(passwordInput, { paddingPercentage: 20 });
         const currentPasswordValue = await registerFrame.evaluate(
           (el) => el.value,
           passwordInput
         );
         for (let i = 0; i < currentPasswordValue.length; i++) {
           await page.keyboard.press("Backspace");
+          await delay(200, 500);
         }
-        await passwordInput.type(password, {
-          delay: typingDelay,
-        });
-        await delay(delayPerAction);
+        await simKeyboardType({ page, text: password });
+        await delay(randint(2000, 5000));
       }
 
       // Click sign up
       await logToProcess(currentProcess, "Clicking Sign up button (final)...");
-      await registerFrame.click("button.SignupButton");
-      await delay(delayPerAction);
+      const firstSignupBtn = await registerFrame.waitForSelector(
+        "button.SignupButton"
+      );
+      await cursor.click(firstSignupBtn, { paddingPercentage: 20 });
+      await delay(randint(800, 2000));
 
       // If error messages show up, quit immediately
       try {
@@ -310,8 +323,8 @@ async function executeRegisterRedditScript(options) {
       const gender = await page.waitForXPath(
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/label[1]/span"
       );
-      await gender.click();
-      await delay(delayPerAction);
+      await cursor.click(gender, { paddingPercentage: 20 });
+      await delay(randint(2000, 5000));
 
       // Click continue
       await logToProcess(
@@ -321,8 +334,8 @@ async function executeRegisterRedditScript(options) {
       const continue1 = await page.waitForXPath(
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
       );
-      await continue1.click();
-      await delay(delayPerAction);
+      await cursor.click(continue1, { paddingPercentage: 20 });
+      await delay(randint(2000, 5000));
 
       // Select random topics
       const selectedTopics = [];
@@ -337,11 +350,11 @@ async function executeRegisterRedditScript(options) {
         ).jsonValue();
         if (selectedTopics.indexOf(topicName) == -1) {
           selectedTopics.push(topicName);
-          await currentTopic.click();
+          await cursor.click(currentTopic, { paddingPercentage: 20 });
         }
-        await delay(500);
+        await delay(randint(500, 1000));
       }
-      await delay(delayPerAction);
+      await delay(randint(2000, 5000));
 
       // Click continue
       await logToProcess(
@@ -351,8 +364,8 @@ async function executeRegisterRedditScript(options) {
       const continue2 = await page.waitForXPath(
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
       );
-      await continue2.click();
-      await delay(delayPerAction);
+      await cursor.click(continue2, { paddingPercentage: 20 });
+      await delay(randint(2000, 5000));
 
       // Join some communities
       await logToProcess(currentProcess, "Joining in some communities...");
@@ -363,12 +376,12 @@ async function executeRegisterRedditScript(options) {
           const currentCommunity = await page.$x(
             `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/div[${i}]`
           );
-          await currentCommunity[0].click();
+          await cursor.click(currentCommunity[0], { paddingPercentage: 20 });
           numCommunities -= 1;
-          await delay(500);
+          await delay(randint(500, 1000));
         } catch (err) {}
       }
-      await delay(delayPerAction);
+      await delay(randint(2000, 5000));
 
       // Click continue
       await logToProcess(
@@ -378,23 +391,23 @@ async function executeRegisterRedditScript(options) {
       const continue3 = await page.waitForXPath(
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
       );
-      await continue3.click();
-      await delay(delayPerAction);
+      await cursor.click(continue3, { paddingPercentage: 20 });
+      await delay(randint(2000, 5000));
 
       // Select avatar
       await logToProcess(currentProcess, "Selecting avatar...");
       const continue4 = await page.waitForXPath(
         "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
       );
-      await delay(delayPerAction);
+      await delay(randint(2000, 5000));
 
       // Click continue
       await logToProcess(
         currentProcess,
         "Clicking continue (select avatar)..."
       );
-      await continue4.click();
-      await delay(delayPerAction);
+      await cursor.click(continue4, { paddingPercentage: 20 });
+      await delay(randint(2000, 5000));
 
       // Wait for the modal to disappear
       await page.waitForXPath("/html/body/div[1]/div/div[2]/div[4]/div/div", {
@@ -414,20 +427,21 @@ async function executeRegisterRedditScript(options) {
       if (turnOnNSFW) {
         try {
           await logToProcess(currentProcess, "Turning on NSFW...");
-          // Click on account dropdown butotn
-          await page.waitForSelector("button#USER_DROPDOWN_ID");
-          await page.click("button#USER_DROPDOWN_ID");
-          await delay(config.get("delayPerAction"));
+          // Click on account dropdown button
+          await cursor.click("button#USER_DROPDOWN_ID", {
+            paddingPercentage: 20,
+          });
+          await delay(randint(2000, 5000));
 
           // Wait for user settings button
-          await page.waitForSelector("a[href^='/settings']");
-          await page.click("a[href^='/settings']");
-          await delay(config.get("delayPerAction"));
+          await cursor.click("a[href^='/settings']", { paddingPercentage: 20 });
+          await delay(randint(2000, 5000));
 
           // Click on Profile
-          await page.waitForSelector("a[href^='/settings/profile']");
-          await page.click("a[href^='/settings/profile']");
-          await delay(config.get("delayPerAction"));
+          await cursor.click("a[href^='/settings/profile']", {
+            paddingPercentage: 20,
+          });
+          await delay(randint(2000, 5000));
 
           // Wait for NSFW Label to get ID of that button
           const nsfwLabel = await page.waitForXPath('//h3[text()="NSFW"]/..');
@@ -446,14 +460,16 @@ async function executeRegisterRedditScript(options) {
           );
 
           if (nsfwTurnedOn != "true") {
-            await nsfwButton.click();
+            await cursor.click(nsfwButton, { paddingPercentage: 20 });
           }
 
-          await delay(config.get("delayPerAction"));
+          await delay(randint(2000, 5000));
 
           // Turn on "Adult content"
-          await page.click('a[href^="/settings/feed"]');
-          await delay(config.get("delayPerAction"));
+          await cursor.click('a[href^="/settings/feed"]', {
+            paddingPercentage: 20,
+          });
+          await delay(randint(2000, 5000));
           // Wait for Adult Content Label to get ID of that button
           const adultContentLabel = await page.waitForXPath(
             '//h3[text()="Adult content"]/..'
@@ -472,7 +488,7 @@ async function executeRegisterRedditScript(options) {
           );
 
           if (adultContentTurnedOn != "true") {
-            await adultContentButton.click();
+            await cursor.click(adultContentButton, { paddingPercentage: 20 });
             await delay(config.get("delayPerAction"));
           }
           NSFW = true;
@@ -495,8 +511,8 @@ async function executeRegisterRedditScript(options) {
           );
 
           if (markdownTurnedOn != "true") {
-            await markdownButton.click();
-            await delay(config.get("delayPerAction"));
+            await cursor.click(markdownButton, { paddingPercentage: 20 });
+            await delay(randint(2000, 5000));
           }
         } catch (err) {
           NSFW = false;

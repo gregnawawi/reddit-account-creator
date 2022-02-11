@@ -1,3 +1,4 @@
+const { installMouseHelper } = require("ghost-cursor");
 const { delay } = require("./otherUtil");
 const { randint } = require("./randomUtil");
 
@@ -20,6 +21,45 @@ async function scrollPage(options) {
   });
 }
 
+async function simKeyboardType(options) {
+  const { page, text, pauseAfterLastKeyUp = true } = options;
+
+  const needsShiftKey = '~!@#$%^&*()_+QWERTYUIOP{}|ASDFGHJKL:"ZXCVBNM<>?';
+
+  for (let ch of text) {
+    let needsShift = false;
+    if (needsShiftKey.includes(ch)) {
+      needsShift = true;
+      await page.keyboard.down("ShiftLeft");
+      await delay(randint(500, 1000));
+    }
+
+    await page.keyboard.type("" + ch, { delay: randint(30, 100) });
+
+    if (needsShift) {
+      await delay(150, 450);
+      await page.keyboard.up("ShiftLeft");
+    }
+
+    await delay(30, 100);
+
+    if (pauseAfterLastKeyUp) {
+      await delay(300, 1000);
+    }
+  }
+}
+
+async function simKeyboardPress(options) {
+  const { page, text, pauseAfterKeyUp = true } = options;
+
+  await page.keyboard.press(text);
+  if (pauseAfterKeyUp) {
+    await delay(300, 1000);
+  }
+}
+
 module.exports = {
   scrollPage,
+  simKeyboardPress,
+  simKeyboardType,
 };
