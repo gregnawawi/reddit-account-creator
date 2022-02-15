@@ -67,7 +67,7 @@ router.post("/export", async (req, res) => {
       break;
     }
   }
-  const zip = new AdmZip();
+  // const zip = new AdmZip();
 
   const accounts = await Account.find(queryOptions).select(
     "username password email passmail cookies NSFW mailVerified IP createdDate status -_id"
@@ -89,27 +89,27 @@ router.post("/export", async (req, res) => {
   // Add CSV File
   const parser = new Parser({ fields });
   const accountsCSV = parser.parse(accounts);
-  zip.addFile("accounts.csv", accountsCSV);
+  // zip.addFile("accounts.csv", accountsCSV);
 
   // Add chrome profile folders
-  for (const account of accounts) {
-    const currentProfilePath = path.resolve(
-      config.get("chromeProfilesPath"),
-      `./${account.username}`
-    );
-    if (fs.existsSync(currentProfilePath)) {
-      zip.addLocalFolder(currentProfilePath, account.username);
-    }
-  }
+  // for (const account of accounts) {
+  //   const currentProfilePath = path.resolve(
+  //     config.get("chromeProfilesPath"),
+  //     `./${account.username}`
+  //   );
+  //   if (fs.existsSync(currentProfilePath)) {
+  //     zip.addLocalFolder(currentProfilePath, account.username);
+  //   }
+  // }
 
-  const data = zip.toBuffer();
+  // const data = zip.toBuffer();
 
-  const downloadName = `accounts_${formatDate(new Date(), "mm-dd-YYYY")}.zip`;
+  const downloadName = `accounts_${formatDate(new Date(), "mm-dd-YYYY")}.csv`;
 
   res.set("Content-Type", "application/octet-stream");
   res.set("Content-Disposition", `attachment; filename=${downloadName}`);
-  res.set("Content-Length", data.length);
-  res.send(data);
+  res.set("Content-Length", accountsCSV.length);
+  res.send(accountsCSV);
 });
 
 exports.accountRouter = router;
