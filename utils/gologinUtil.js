@@ -22,6 +22,27 @@ async function createNewGologinBrowser(options) {
       visualFeedback: true,
     })
   );
+  const stealthPlugin = require("puppeteer-extra-plugin-stealth")();
+  stealthPlugin.enabledEvasions.delete("chrome.app");
+  stealthPlugin.enabledEvasions.delete("chrome.csi");
+  stealthPlugin.enabledEvasions.delete("chrome.loadTimes");
+  stealthPlugin.enabledEvasions.delete("chrome.runtime");
+  // stealthPlugin.enabledEvasions.delete("defaultArgs");
+  stealthPlugin.enabledEvasions.delete("iframe.contentWindow");
+  stealthPlugin.enabledEvasions.delete("media.codecs");
+  stealthPlugin.enabledEvasions.delete("navigator.hardwareConcurrency");
+  stealthPlugin.enabledEvasions.delete("navigator.languages");
+  stealthPlugin.enabledEvasions.delete("navigator.permissions");
+  stealthPlugin.enabledEvasions.delete("navigator.plugins");
+  stealthPlugin.enabledEvasions.delete("navigator.vendor");
+  stealthPlugin.enabledEvasions.delete("navigator.webdriver");
+  // stealthPlugin.enabledEvasions.delete("sourceurl");
+  stealthPlugin.enabledEvasions.delete("user-agent-override");
+  stealthPlugin.enabledEvasions.delete("webgl.vendor");
+  stealthPlugin.enabledEvasions.delete("window.outerdimensions");
+  // stealthPlugin.enabledEvasions.delete("iframe.src");
+  // stealthPlugin.enabledEvasions.delete("window.matchMedia");
+  puppeteer.use(stealthPlugin);
   return new Promise(async (resolve, reject) => {
     try {
       const gologinOptions = {
@@ -30,6 +51,7 @@ async function createNewGologinBrowser(options) {
           "--disable-background-timer-throttling",
           "--disable-backgrounding-occluded-windows",
           "--disable-renderer-backgrounding",
+          // "--disable-notifications",
         ],
         tmpdir,
       };
