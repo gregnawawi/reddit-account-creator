@@ -14,12 +14,13 @@ const accountSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: false,
+    default: "",
     maxlength: 255,
   },
   passmail: {
     type: String,
     required: false,
+    default: "",
     maxlength: 255,
   },
   cookies: String,

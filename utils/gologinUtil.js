@@ -32,7 +32,7 @@ async function createNewGologinBrowser(options) {
   stealthPlugin.enabledEvasions.delete("media.codecs");
   stealthPlugin.enabledEvasions.delete("navigator.hardwareConcurrency");
   stealthPlugin.enabledEvasions.delete("navigator.languages");
-  stealthPlugin.enabledEvasions.delete("navigator.permissions");
+  // stealthPlugin.enabledEvasions.delete("navigator.permissions");
   stealthPlugin.enabledEvasions.delete("navigator.plugins");
   stealthPlugin.enabledEvasions.delete("navigator.vendor");
   stealthPlugin.enabledEvasions.delete("navigator.webdriver");
@@ -51,7 +51,7 @@ async function createNewGologinBrowser(options) {
           "--disable-background-timer-throttling",
           "--disable-backgrounding-occluded-windows",
           "--disable-renderer-backgrounding",
-          // "--disable-notifications",
+          "--disable-notifications",
         ],
         tmpdir,
       };
@@ -122,6 +122,7 @@ async function reuseGologinBrowser(options) {
           "--disable-background-timer-throttling",
           "--disable-backgrounding-occluded-windows",
           "--disable-renderer-backgrounding",
+          "--disable-notifications",
         ],
         tmpdir,
       };
