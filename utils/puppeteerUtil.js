@@ -31,7 +31,7 @@ async function simKeyboardType(options) {
     if (needsShiftKey.includes(ch)) {
       needsShift = true;
       await page.keyboard.down("ShiftLeft");
-      await delay(randint(500, 1000));
+      await delay(randint(500, 700));
     }
 
     await page.keyboard.type("" + ch, { delay: randint(30, 100) });
@@ -44,7 +44,7 @@ async function simKeyboardType(options) {
     await delay(30, 100);
 
     if (pauseAfterLastKeyUp) {
-      await delay(300, 1000);
+      await delay(300, 700);
     }
   }
 }

@@ -8,6 +8,7 @@ const { xProxyRouter } = require("./routes/xproxy");
 const { checkRouter } = require("./routes/check");
 const { emailRouter } = require("./routes/email");
 const { settingsRouter } = require("./routes/settings");
+const { tinsoftRouter } = require("./routes/tinsoft");
 
 mongoose
   .connect(config.get("mongoDBHost"))
@@ -33,5 +34,6 @@ app.use("/xproxies", xProxyRouter);
 app.use("/check", checkRouter);
 app.use("/emails", emailRouter);
 app.use("/settings", settingsRouter);
+app.use("/tinsofts", tinsoftRouter);
 
 app.listen(3000);

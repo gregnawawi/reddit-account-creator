@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const { Account } = require("../models/account");
 const { Task } = require("../models/task");
 const { xProxy } = require("../models/xproxy");
+const { Tinsoft } = require("../models/tinsoft");
 const { Process } = require("../models/process");
 const { Email } = require("../models/email");
 const { delay } = require("../utils/otherUtil");
@@ -325,13 +326,6 @@ async function executeRegisterRedditScript(options) {
       }
     }
 
-    // Turn off browser notification
-    // const browserContext = goLoginBrowser.defaultBrowserContext();
-    // browserContext.overridePermissions("https://www.reddit.com", [
-    //   "geolocation",
-    //   "notifications",
-    // ]);
-
     try {
       const page = await goLoginBrowser.newPage();
       await delay(300);
@@ -358,277 +352,347 @@ async function executeRegisterRedditScript(options) {
       const cursor = createCursor(page, await getRandomPagePoint(page));
       await installMouseHelper(page); // Show mouse circle
 
-      await page.goto("https://www.reddit.com", {
-        waitUntil: ["networkidle2"],
-      });
-
-      await logToProcess(currentProcess, "Scrolling reddit for a while...");
-      await scrollPage({
-        page,
-        minTime: 3000,
-        maxTime: 5000,
-      });
-
-      // Click Sign up button
-      await delay(randint(600, 1000));
-      await logToProcess(currentProcess, "Clicking signup button...");
-      await cursor.click('a[href^="https://www.reddit.com/register"]', {
-        paddingPercentage: 20,
-      });
-
-      // Get register iframe
-      await logToProcess(currentProcess, "Getting register iframe...");
-      const frameElementHandle = await page.waitForSelector(
-        'iframe[src^="https://www.reddit.com/register"]'
-      );
-      const registerFrame = await frameElementHandle.contentFrame();
-
       let emailUsername = "";
       let emailPassword = "";
-      if (verifyEmail) {
-        // Get a new email address
-        await logToProcess(currentProcess, "Getting a new email address...");
-        const email = await Email.findOneAndUpdate(
-          { status: true },
-          { $set: { status: false } },
-          { new: true }
-        );
-        if (!email) {
-          logger.error("No emails are available!");
-          await goLoginBrowser.close();
-          await goLogin.stopLocal();
-          await goLogin.stopBrowser(); // Testing
-          currentTask.running = false;
-          await currentTask.save();
-          await currentProxy.endUsing();
-          await endProcess(currentProcess);
-        }
-        emailUsername = email.username;
-        emailPassword = email.password;
 
-        // Type email address
-        await delay(randint(2000, 6000));
-        await logToProcess(currentProcess, "Filling in email address...");
-        const emailInput = await registerFrame.waitForSelector(
-          "input#regEmail",
+      for (let i = 0; i < 2; i++) {
+        try {
+          if (i == 0) {
+            await page.goto("https://www.reddit.com", {
+              waitUntil: ["networkidle2"],
+            });
+          } else {
+            await page.reload({ waitUntil: ["networkidle2"] });
+          }
+
+          await logToProcess(currentProcess, "Scrolling reddit for a while...");
+          await scrollPage({
+            page,
+            minTime: 3000,
+            maxTime: 5000,
+          });
+
+          // Click Sign up button
+          await delay(randint(600, 1000));
+          await logToProcess(currentProcess, "Clicking signup button...");
+          await page.waitForXPath('//a[contains(text(), "Sign Up")]', {
+            timeout: 5000,
+          });
+          await cursor.click('//a[contains(text(), "Sign Up")]', {
+            paddingPercentage: 20,
+          });
+
+          // Get register iframe
+          await logToProcess(currentProcess, "Getting register iframe...");
+          // Wait for a specific time
+          const frameElementHandle = await page.waitForSelector(
+            'iframe[src^="https://www.reddit.com/register"]',
+            { timeout: 5000 }
+          );
+          const registerFrame = await frameElementHandle.contentFrame();
+
+          if (verifyEmail) {
+            // Get a new email address
+            await logToProcess(
+              currentProcess,
+              "Getting a new email address..."
+            );
+            const email = await Email.findOneAndUpdate(
+              { status: true },
+              { $set: { status: false } },
+              { new: true }
+            );
+            if (!email) {
+              logger.error("No emails are available!");
+              await goLoginBrowser.close();
+              await goLogin.stopLocal();
+              await goLogin.stopBrowser(); // Testing
+              currentTask.running = false;
+              await currentTask.save();
+              await currentProxy.endUsing();
+              await endProcess(currentProcess);
+            }
+            emailUsername = email.username;
+            emailPassword = email.password;
+
+            // Type email address
+            await delay(randint(2000, 6000));
+            await logToProcess(currentProcess, "Filling in email address...");
+            const emailInput = await registerFrame.waitForSelector(
+              "input#regEmail",
+              {
+                visible: true,
+              }
+            );
+            await cursor.click(emailInput, { paddingPercentage: 20 });
+            await simKeyboardType({ page, text: emailUsername });
+          }
+          await delay(randint(6000, 15000));
+
+          // Click Next button
+          await logToProcess(
+            currentProcess,
+            "Clicking Next button (after filling email)..."
+          );
+          // Wait for a specific time
+          const nextAfterFillMailBtn = await registerFrame.waitForSelector(
+            "fieldset button.AnimatedForm__submitButton",
+            {
+              visible: true,
+              timeout: 5000,
+            }
+          );
+          await delay(randint(2000, 6000));
+          await cursor.click(nextAfterFillMailBtn, { paddingPercentage: 20 });
+          await delay(randint(4000, 8000));
+
+          // Type username & password
+          await logToProcess(currentProcess, "Typing username & password...");
+          // Wait for a specific time
+          const usernameInput = await registerFrame.waitForSelector(
+            "input#regUsername",
+            {
+              visible: true,
+              timeout: 5000,
+            }
+          );
+          await cursor.click(usernameInput, { paddingPercentage: 20 });
+          await delay(randint(100, 300));
+          await simKeyboardType({ page, text: username });
+          await delay(randint(1000, 2000));
+          const passwordInput = await registerFrame.waitForSelector(
+            "input#regPassword"
+          );
+
+          await cursor.click(passwordInput, { paddingPercentage: 20 });
+          await delay(randint(100, 300));
+          await simKeyboardType({ page, text: password });
+          await delay(randint(800, 2000));
+
+          // Solve captcha
+          await logToProcess(currentProcess, "Solving captcha...");
+          const captchaResult = await registerFrame.solveRecaptchas();
+          if (captchaResult.error) {
+            await logToProcess(currentProcess, "Unable to solve captcha");
+            await goLoginBrowser.close();
+            await goLogin.stopLocal();
+            await goLogin.stopBrowser(); // Testing
+            reject(`Unable to solve captcha ${captchaResult.error.error}`);
+            return;
+          } else {
+            await logToProcess(currentProcess, "Solved captcha sucessfully");
+          }
+          await delay(randint(500, 2000));
+
+          // Check if there's any invalid message
+          const [invalidUsername] = await registerFrame.$x(
+            "//div[contains(text(), 'already taken')]"
+          );
+          if (invalidUsername) {
+            await cursor.click(usernameInput, { paddingPercentage: 20 });
+            await delay(randint(500, 1000));
+            await page.keyboard.down("Control");
+            await delay(randint(500, 1000));
+            await page.keyboard.press("A");
+            await delay(randint(500, 1000));
+            await page.keyboard.up("Control");
+            await delay(randint(500, 1000));
+            await page.keyboard.press("Backspace");
+            await delay(randint(500, 1000));
+            await simKeyboardType({ page, text: username });
+            await delay(randint(1000, 1500));
+          }
+          const [invalidPassword] = await registerFrame.$x(
+            "//div[contains(text(), 'characters long') or contains(text(), 'characters in length')]"
+          );
+          if (invalidPassword) {
+            await cursor.click(passwordInput, { paddingPercentage: 20 });
+            await delay(randint(500, 1000));
+            await page.keyboard.down("Control");
+            await delay(randint(500, 1000));
+            await page.keyboard.press("A");
+            await delay(randint(500, 1000));
+            await page.keyboard.up("Control");
+            await delay(randint(500, 1000));
+            await page.keyboard.press("Backspace");
+            await delay(randint(500, 1000));
+            await simKeyboardType({ page, text: password });
+            await delay(randint(1000, 1500));
+          }
+
+          // Click sign up
+          await logToProcess(
+            currentProcess,
+            "Clicking Sign up button (final)..."
+          );
+          const firstSignupBtn = await registerFrame.waitForSelector(
+            "button.SignupButton"
+          );
+          await cursor.click(firstSignupBtn, { paddingPercentage: 20 });
+          await delay(randint(800, 2000));
+
+          try {
+            await page.waitForNavigation({
+              timeout: 15000,
+              waitUntil: ["networkidle2"],
+            });
+          } catch (err) {
+            // If error messages show up, quit immediately
+            try {
+              const bottomBarMsgXpath = await registerFrame.$x(
+                "/html/body/div[1]/main/div[2]/div/div/div[3]/span/span[2]"
+              );
+              const bottomBarMsg = await (
+                await bottomBarMsgXpath[0].getProperty("textContent")
+              ).jsonValue();
+              if (bottomBarMsg) {
+                reject(`Something went wrong: ${bottomBarMsg}`);
+                await goLoginBrowser.close();
+                await goLogin.stopLocal();
+                await goLogin.stopBrowser(); // Testing
+                return;
+              }
+            } catch (err) {}
+          }
+
+          break;
+        } catch (err) {
+          if (i == 1) {
+            await goLoginBrowser.close();
+            await goLogin.stopLocal();
+            await goLogin.stopBrowser(); // Testing
+            reject(`Can't register - 1st stage - ` + err);
+            return;
+          }
+          await delay(randint(3000, 5000));
+        }
+      }
+
+      try {
+        // Select gender
+        await logToProcess(currentProcess, "Selecting gender...");
+        const gender = await page.waitForXPath(
+          "//*[contains(text(), 'Woman')]",
           {
-            visible: true,
+            timeout: 10000,
           }
         );
-        await cursor.click(emailInput, { paddingPercentage: 20 });
-        await simKeyboardType({ page, text: emailUsername });
-      }
-      await delay(randint(6000, 15000));
-
-      // Click Next button
-      await logToProcess(
-        currentProcess,
-        "Clicking Next button (after filling email)..."
-      );
-      const nextAfterFillMailBtn = await registerFrame.waitForSelector(
-        "fieldset button.AnimatedForm__submitButton",
-        {
-          visible: true,
-        }
-      );
-      await delay(randint(2000, 6000));
-      await cursor.click(nextAfterFillMailBtn, { paddingPercentage: 20 });
-      await delay(randint(4000, 8000));
-
-      // Type username & password
-      await logToProcess(currentProcess, "Typing username & password...");
-      const usernameInput = await registerFrame.waitForSelector(
-        "input#regUsername",
-        {
-          visible: true,
-        }
-      );
-      await cursor.click(usernameInput, { paddingPercentage: 20 });
-      await simKeyboardType({ page, text: username });
-      await delay(randint(1000, 2000));
-      const passwordInput = await registerFrame.waitForSelector(
-        "input#regPassword"
-      );
-      await cursor.click(passwordInput, { paddingPercentage: 20 });
-      await simKeyboardType({ page, text: password });
-      await delay(randint(800, 2000));
-
-      // Solve captcha
-      await logToProcess(currentProcess, "Solving captcha...");
-      const captchaResult = await registerFrame.solveRecaptchas();
-      if (captchaResult.error) {
-        await logToProcess(currentProcess, "Unable to solve captcha");
-        await goLoginBrowser.close();
-        await goLogin.stopLocal();
-        await goLogin.stopBrowser(); // Testing
-        reject(`Unable to solve captcha ${captchaResult.error.error}`);
-        return;
-      } else {
-        await logToProcess(currentProcess, "Solved captcha sucessfully");
-      }
-      await delay(delayPerAction);
-
-      // Check if there's any invalid message
-      const invalidMessages = await registerFrame.$x(
-        "//div[contains(text(), 'already taken') or contains(text(), 'characters long') or contains(text(), 'characters in length')]"
-      );
-      // If yes, re-type username & password
-      if (invalidMessages.length != 0) {
-        await cursor.click(usernameInput, { paddingPercentage: 20 });
-        await delay(randint(1000, 2500));
-        await page.keyboard.down("Control");
-        await delay(randint(500, 1000));
-        await page.keyboard.press("A");
-        await delay(randint(500, 1000));
-        await page.keyboard.up("Control");
-        await delay(randint(500, 1000));
-        await page.keyboard.press("Backspace");
-        await delay(randint(500, 1000));
-        await simKeyboardType({ page, text: username });
-        await delay(randint(1000, 2000));
-
-        await cursor.click(passwordInput, { paddingPercentage: 20 });
-        await delay(randint(1000, 2500));
-        await page.keyboard.down("Control");
-        await delay(randint(500, 1000));
-        await page.keyboard.press("A");
-        await delay(randint(500, 1000));
-        await page.keyboard.up("Control");
-        await delay(randint(500, 1000));
-        await page.keyboard.press("Backspace");
-        await delay(randint(500, 1000));
-        await simKeyboardType({ page, text: password });
+        await cursor.click(gender, { paddingPercentage: 20 });
         await delay(randint(2000, 5000));
-      }
 
-      // Click sign up
-      await logToProcess(currentProcess, "Clicking Sign up button (final)...");
-      const firstSignupBtn = await registerFrame.waitForSelector(
-        "button.SignupButton"
-      );
-      await cursor.click(firstSignupBtn, { paddingPercentage: 20 });
-      await delay(randint(800, 2000));
-
-      // If error messages show up, quit immediately
-      try {
-        const bottomBarMsgXpath = await registerFrame.$x(
-          "/html/body/div[1]/main/div[2]/div/div/div[3]/span/span[2]"
+        // Click continue
+        await logToProcess(
+          currentProcess,
+          "Clicking continue (select gender)..."
         );
-        const bottomBarMsg = await (
-          await bottomBarMsgXpath[0].getProperty("textContent")
-        ).jsonValue();
-        if (bottomBarMsg) {
-          reject(`Something went wrong: ${bottomBarMsg}`);
-          await goLoginBrowser.close();
-          await goLogin.stopLocal();
-          await goLogin.stopBrowser(); // Testing
-          return;
-        }
-      } catch (err) {}
-
-      // Select gender
-      await logToProcess(currentProcess, "Selecting gender...");
-      const gender = await page.waitForXPath(
-        "//span[contains(text(), 'Woman')]"
-      );
-      await cursor.click(gender, { paddingPercentage: 20 });
-      await delay(randint(2000, 5000));
-
-      // Click continue
-      await logToProcess(
-        currentProcess,
-        "Clicking continue (select gender)..."
-      );
-      const continue1 = await page.waitForXPath(
-        "//button[contains(text(), 'Continue')]"
-      );
-      await cursor.click(continue1, { paddingPercentage: 20 });
-      await delay(randint(2000, 5000));
-
-      // Select random topics
-      const selectedTopics = [];
-      await logToProcess(currentProcess, "Selecting topics...");
-      for (let i = 0; i < 6; i++) {
-        const currentTopicId = randint(1, 15);
-        const currentTopic = await page.waitForXPath(
-          `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/button[${currentTopicId}]`
+        const continue1 = await page.waitForXPath(
+          "//button[contains(text(), 'Continue')]"
         );
-        const topicName = await (
-          await currentTopic.getProperty("textContent")
-        ).jsonValue();
-        if (selectedTopics.indexOf(topicName) == -1) {
-          selectedTopics.push(topicName);
-          await cursor.click(currentTopic, { paddingPercentage: 20 });
-        }
-        await delay(randint(700, 1500));
-      }
-      await delay(randint(2000, 5000));
+        await cursor.click(continue1, { paddingPercentage: 20 });
+        await delay(randint(2000, 5000));
 
-      // Click continue
-      await logToProcess(
-        currentProcess,
-        "Clicking continue (select topics)..."
-      );
-      const continue2 = await page.waitForXPath(
-        "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
-      );
-      await cursor.click(continue2, { paddingPercentage: 20 });
-      await delay(randint(2000, 5000));
-
-      // Join some communities
-      await logToProcess(currentProcess, "Joining in some communities...");
-      let numCommunities = randint(2, 5);
-      for (let i = 2; i <= 20; i++) {
-        if (numCommunities === 0) break;
-        try {
-          const currentCommunity = await page.$x(
-            `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/div[${i}]`
+        // Select random topics
+        const selectedTopics = [];
+        await logToProcess(currentProcess, "Selecting topics...");
+        for (let i = 0; i < 6; i++) {
+          const currentTopicId = randint(1, 15);
+          const currentTopic = await page.waitForXPath(
+            `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/button[${currentTopicId}]`,
+            { timeout: 5000 }
           );
-          await cursor.click(currentCommunity[0], { paddingPercentage: 20 });
-          numCommunities -= 1;
-          await delay(randint(500, 1000));
+          const topicName = await (
+            await currentTopic.getProperty("textContent")
+          ).jsonValue();
+          if (selectedTopics.indexOf(topicName) == -1) {
+            selectedTopics.push(topicName);
+            await cursor.click(currentTopic, { paddingPercentage: 20 });
+          }
+          await delay(randint(700, 1500));
+        }
+        await delay(randint(2000, 5000));
+
+        // Click continue
+        await logToProcess(
+          currentProcess,
+          "Clicking continue (select topics)..."
+        );
+        const continue2 = await page.waitForXPath(
+          "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
+        );
+        await cursor.click(continue2, { paddingPercentage: 20 });
+        await delay(randint(2000, 5000));
+
+        // Join some communities
+        await logToProcess(currentProcess, "Joining in some communities...");
+        let numCommunities = randint(2, 5);
+        for (let i = 2; i <= 20; i++) {
+          if (numCommunities === 0) break;
+          try {
+            const currentCommunity = await page.$x(
+              `/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[1]/div/div[${i}]`
+            );
+            await cursor.click(currentCommunity[0], { paddingPercentage: 20 });
+            numCommunities -= 1;
+            await delay(randint(500, 1000));
+          } catch (err) {}
+        }
+        await delay(randint(2000, 5000));
+
+        // Click continue
+        await logToProcess(
+          currentProcess,
+          "Clicking continue (join in communities)..."
+        );
+        const continue3 = await page.waitForXPath(
+          "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
+        );
+        await cursor.click(continue3, { paddingPercentage: 20 });
+        await delay(randint(2000, 5000));
+
+        // Select avatar
+        await logToProcess(currentProcess, "Selecting avatar...");
+        const continue4 = await page.waitForXPath(
+          "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
+        );
+        await delay(randint(2000, 5000));
+
+        // Click continue
+        await logToProcess(
+          currentProcess,
+          "Clicking continue (select avatar)..."
+        );
+        await cursor.click(continue4, { paddingPercentage: 20 });
+        await delay(randint(2000, 5000));
+
+        // Wait for the modal to disappear
+        await page.waitForXPath("/html/body/div[1]/div/div[2]/div[4]/div/div", {
+          hidden: true,
+        });
+
+        // Check if there's unable to save avatar
+        try {
+          const msgBox = await page.waitForXPath(
+            "//span[contains(text(), 'Unable')]/../..",
+            { timeout: 3000 }
+          );
+          await page.evaluate((el) => el.remove(), msgBox);
         } catch (err) {}
+
+        // Scroll for a while after sign up
+        await logToProcess(
+          currentProcess,
+          "Scrolling for a while after sign up"
+        );
+        await scrollPage({
+          page,
+          minTime: 15000,
+          maxTime: 20000,
+        });
+      } catch (err) {
+        await page.reload({
+          waitUntil: ["networkidle2"],
+        });
       }
-      await delay(randint(2000, 5000));
-
-      // Click continue
-      await logToProcess(
-        currentProcess,
-        "Clicking continue (join in communities)..."
-      );
-      const continue3 = await page.waitForXPath(
-        "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
-      );
-      await cursor.click(continue3, { paddingPercentage: 20 });
-      await delay(randint(2000, 5000));
-
-      // Select avatar
-      await logToProcess(currentProcess, "Selecting avatar...");
-      const continue4 = await page.waitForXPath(
-        "/html/body/div[1]/div/div[2]/div[4]/div/div/div/div[2]/button"
-      );
-      await delay(randint(2000, 5000));
-
-      // Click continue
-      await logToProcess(
-        currentProcess,
-        "Clicking continue (select avatar)..."
-      );
-      await cursor.click(continue4, { paddingPercentage: 20 });
-      await delay(randint(2000, 5000));
-
-      // Wait for the modal to disappear
-      await page.waitForXPath("/html/body/div[1]/div/div[2]/div[4]/div/div", {
-        hidden: true,
-      });
-
-      // Scroll for a while after sign up
-      await logToProcess(currentProcess, "Scrolling for a while after sign up");
-      await scrollPage({
-        page,
-        minTime: 15000,
-        maxTime: 20000,
-      });
 
       // Turn on NSFW
       let NSFW = false;
@@ -636,17 +700,41 @@ async function executeRegisterRedditScript(options) {
         try {
           await logToProcess(currentProcess, "Turning on NSFW...");
           // Click on account dropdown button
+          await page.waitForSelector("button#USER_DROPDOWN_ID", {
+            timeout: 5000,
+          });
           await cursor.click("button#USER_DROPDOWN_ID", {
             paddingPercentage: 20,
           });
           await delay(randint(2000, 5000));
 
           // Wait for user settings button
-          await cursor.click("a[href^='/settings']", { paddingPercentage: 20 });
+          try {
+            await page.waitForXPath(
+              '//div[contains(text(), "User Settings")]',
+              { timeout: 3000 }
+            );
+          } catch (err) {
+            await goLoginBrowser.close();
+            await goLogin.stopLocal();
+            await goLogin.stopBrowser(); // Testing
+            reject(`User can't be registered - ` + err);
+            return;
+          }
+          await cursor.click('//div[contains(text(), "User Settings")]', {
+            paddingPercentage: 20,
+          });
           await delay(randint(2000, 5000));
 
           // Click on Profile
-          await cursor.click("a[href^='/settings/profile']", {
+          try {
+            await page.waitForXPath("//a[contains(text(), 'Profile')]", {
+              timeout: 8000,
+            });
+          } catch (err) {
+            await page.reload({ waitUntil: ["networkidle2"], timeout: 15000 });
+          }
+          await cursor.click("//a[contains(text(), 'Profile')]", {
             paddingPercentage: 20,
           });
           await delay(randint(2000, 5000));
@@ -669,12 +757,22 @@ async function executeRegisterRedditScript(options) {
 
           if (nsfwTurnedOn != "true") {
             await cursor.click(nsfwButton, { paddingPercentage: 20 });
+            try {
+              const msgBox = await page.waitForXPath(
+                "//span[contains(text(), 'saved')]/../..",
+                { timeout: 8000 }
+              );
+              await page.evaluate((el) => el.remove(), msgBox);
+            } catch (err) {}
           }
 
           await delay(randint(2000, 5000));
 
           // Turn on "Adult content"
-          await cursor.click('a[href^="/settings/feed"]', {
+          const feedSettingsButton = await page.waitForXPath(
+            "//a[contains(text(), 'Feed Settings')]"
+          );
+          await cursor.click(feedSettingsButton, {
             paddingPercentage: 20,
           });
           await delay(randint(2000, 5000));
@@ -697,7 +795,13 @@ async function executeRegisterRedditScript(options) {
 
           if (adultContentTurnedOn != "true") {
             await cursor.click(adultContentButton, { paddingPercentage: 20 });
-            await delay(config.get("delayPerAction"));
+            try {
+              const msgBox = await page.waitForXPath(
+                "//span[contains(text(), 'saved')]/../..",
+                { timeout: 8000 }
+              );
+              await page.evaluate((el) => el.remove(), msgBox);
+            } catch (err) {}
           }
           NSFW = true;
           // Turn on default markdown
@@ -720,10 +824,18 @@ async function executeRegisterRedditScript(options) {
 
           if (markdownTurnedOn != "true") {
             await cursor.click(markdownButton, { paddingPercentage: 20 });
-            await delay(randint(2000, 5000));
+            try {
+              const msgBox = await page.waitForXPath(
+                "//span[contains(text(), 'saved')]/../..",
+                { timeout: 8000 }
+              );
+              await page.evaluate((el) => el.remove(), msgBox);
+            } catch (err) {}
           }
         } catch (err) {
           NSFW = false;
+          logger.error(`${username}: can't turn on NSFW` + err);
+          await page.screenshot({ path: `${username}.png` });
         }
       }
 
@@ -781,7 +893,7 @@ async function executeRegisterRedditScript(options) {
       resolve(account);
     } catch (err) {
       // Uncaught error
-      reject(`Uncaught error ${err}`);
+      reject(err);
     } finally {
       try {
         await goLoginBrowser.close();
@@ -811,8 +923,27 @@ async function main() {
     if (!currentTask.running) {
       await endProcess(currentProcess);
     }
+    // Rotate Proxy if needed
+    for (let i = 0; i < config.get("maxAttemps"); i++) {
+      await currentProxy.update();
+      try {
+        await currentProxy.rotateIfNeeded({
+          workerId: cluster.worker.id,
+          numProcesses: currentTask.numProcesses,
+        });
+        break;
+      } catch (err) {
+        logToProcess(currentProcess, err);
+        await delay(config.get("delayPerAttemp"));
+      }
+      if (i === config.get("maxAttemps") - 1) {
+        logger.error(`${currentProxy.proxy} -> can't rotate as needed`);
+        await currentProxy.endUsing();
+        endProcess(currentProcess);
+      }
+    }
 
-    // Update current xProxy fields (used, using)
+    // Update current Proxy fields (used, using)
     for (let i = 0; i < config.get("maxAttemps"); i++) {
       try {
         await currentProxy.startUsing();
@@ -825,24 +956,6 @@ async function main() {
         logger.error(
           `${currentProxy.proxy} -> is rotating, exceeded max attemps to wait.`
         );
-        await currentProxy.endUsing();
-        endProcess(currentProcess);
-      }
-    }
-
-    // Rotate xProxy if needed
-    for (let i = 0; i < config.get("maxAttemps"); i++) {
-      try {
-        await currentProxy.rotateIfNeeded({
-          workerId: cluster.worker.id,
-          numProcesses: currentTask.numProcesses,
-        });
-        break;
-      } catch (err) {
-        logToProcess(currentProcess, err);
-        await delay(config.get("delayPerAttemp"));
-      }
-      if (i === config.get("maxAttemps") - 1) {
         await currentProxy.endUsing();
         endProcess(currentProcess);
       }
@@ -870,7 +983,7 @@ async function main() {
 
     try {
       // INSERT REGISTER REDDIT SCRIPT
-      const registeredAccount = await executeRegisterRedditScriptV3({
+      const registeredAccount = await executeRegisterRedditScript({
         currentProcess,
         currentTask,
         currentProxy,
@@ -889,35 +1002,15 @@ async function main() {
         typingDelay: config.get("typingDelay"),
         logger,
       });
-      // const registeredAccount = await executeRegisterRedditScriptV3({
-      //   currentProcess,
-      //   currentTask,
-      //   currentProxy,
-      //   currentIP,
-      //   girlFirstnameList,
-      //   verifyEmail: config.get("verifyEmail"),
-      //   turnOnNSFW: config.get("turnOnNSFW"),
-      //   headless: config.get("headless"),
-      //   maxAttemps: config.get("maxAttemps"),
-      //   delayPerAttemp: config.get("delayPerAttemp"),
-      //   delayPerAction: config.get("delayPerAction"),
-      //   goLoginAPI: config.get("goLoginAPI"),
-      //   captchaAPI: config.get("2captchaAPI"),
-      //   chromeProfilesPath: config.get("chromeProfilesPath"),
-      //   defaultTimeout: config.get("defaultTimeout"),
-      //   typingDelay: config.get("typingDelay"),
-      //   logger,
-      // });
       logToProcess(currentProcess, "Saving account to DB...");
       await registeredAccount.save();
-
       // END INSERT
 
       // Notify Task that's i'm succeeded
       await currentTask.update();
       await currentTask.succeed();
     } catch (err) {
-      logger.error(`Failed to register account: ${err}`);
+      logger.error(`${currentProxy.proxy}: Failed to register account` + err);
 
       // Notify Task that's i'm failed
       await currentTask.update();
@@ -965,6 +1058,8 @@ async function setup() {
       let currentProxy;
       if (config.get("proxyType") == "xProxy") {
         currentProxy = await xProxy.getProxyByWorkerId(cluster.worker.id);
+      } else if (config.get("proxyType") == "tinsoft") {
+        currentProxy = await Tinsoft.getProxyByWorkerId(cluster.worker.id);
       }
 
       if (!currentProxy) {
